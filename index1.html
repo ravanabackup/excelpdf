@@ -1,0 +1,1930 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light" />
+<meta name="description" content="Paste spreadsheet data — each paste is saved as its own page — then export every page into one bordered, multi-page PDF. 100% offline, single HTML file." />
+<title>Sheet &rarr; PDF &middot; Paste Spreadsheet Data, Export a Multi-Page PDF</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- ==========================================================================
+     SHEET -> PDF   ·   single-file application
+     Everything (markup, styles, logic) lives in this one index.html file.
+     ========================================================================== -->
+<style>
+/* ----------------------------------------------------------------- tokens */
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+:root{
+  --canvas:#eceeea; --paper:#fff;
+  --ink:#0f1d1a; --ink2:#2c443d; --muted:#5c7770; --soft:#8ba79d;
+  --line:#dfe4dd; --line2:#c6d0c5;
+  --pine:#0f4d40; --pine-dk:#0a3a30; --pine-lt:#e3efe9; --pine-bd:#a9cfc0;
+  --amber:#b8791a; --amber-lt:#fbf1dc; --amber-bd:#e9d3a3;
+  --rose:#b3382c; --rose-lt:#fbeae7;
+  --r:12px;
+  --shadow:0 1px 2px rgba(15,29,26,.07);
+  --shadow-md:0 10px 26px -14px rgba(15,29,26,.45);
+  --shadow-lg:0 30px 70px -22px rgba(15,29,26,.5);
+  --display:"Space Grotesk","IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+body{
+  font-family:var(--font); color:var(--ink); font-size:14px; line-height:1.45;
+  background-color:var(--canvas);
+  background-image:
+    radial-gradient(58rem 30rem at 104% -12%, rgba(184,121,26,.14), transparent 62%),
+    linear-gradient(to right,  rgba(15,77,64,.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15,77,64,.055) 1px, transparent 1px),
+    linear-gradient(to right,  rgba(15,77,64,.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15,77,64,.03) 1px, transparent 1px);
+  background-size:auto,132px 132px,132px 132px,22px 22px,22px 22px;
+  background-attachment:fixed;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none}
+h1,h2,h3,p,ol,ul{margin:0}
+ol,ul{padding:0;list-style:none}
+table{border-collapse:collapse}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-thumb{background:#c2ccc1;border-radius:99px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#9fb0a3;background-clip:content-box;border:3px solid transparent}
+
+/* ----------------------------------------------------------- motion keys */
+@keyframes cardIn{from{opacity:0;transform:translateY(9px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes sheetIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes freshPulse{0%{box-shadow:0 0 0 0 rgba(184,121,26,.5)}100%{box-shadow:0 0 0 16px rgba(184,121,26,0)}}
+@keyframes popNum{0%{transform:scale(1)}45%{transform:scale(1.14)}100%{transform:scale(1)}}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes riseIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important}}
+
+/* ---------------------------------------------------------------- topbar */
+.topbar{position:sticky;top:0;z-index:30;border-bottom:1px solid #d7ddd5;background:rgba(252,253,251,.9);backdrop-filter:blur(10px)}
+.topbar-in{max-width:1560px;margin:0 auto;padding:11px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;animation:riseIn .5s both}
+.logo{display:flex;align-items:center;gap:11px}
+.logo-mark{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:#fff;background:var(--pine);
+  box-shadow:inset 0 -2px 0 rgba(0,0,0,.22),0 8px 18px -10px rgba(15,77,64,.9);position:relative;overflow:hidden}
+.logo-mark::after{content:"";position:absolute;inset:auto 0 0 0;height:4px;background:var(--amber)}
+.logo-mark svg{width:21px;height:21px;position:relative}
+.logo h1{font-family:var(--display);font-size:16px;font-weight:700;letter-spacing:-.025em;line-height:1.1}
+.logo p{font-family:var(--mono);font-size:9.5px;font-weight:500;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);margin-top:3px}
+.count-pill{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.02em;background:#fff;color:var(--pine);
+  border:1px solid var(--pine-bd);padding:5px 11px;border-radius:99px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.count-pill.pop{animation:popNum .34s ease-out}
+.spacer{margin-left:auto}
+.tb-actions{display:flex;align-items:center;gap:8px}
+
+/* ---------------------------------------------------------------- layout */
+.layout{max-width:1560px;margin:0 auto;padding:20px 16px 8px;display:grid;gap:18px;
+  grid-template-columns:254px minmax(0,1fr) 324px;align-items:start}
+@media (max-width:1280px){.layout{grid-template-columns:242px minmax(0,1fr)} .col-settings{display:none}}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)} .col-pages{order:2}}
+.sticky{position:sticky;top:78px}
+.col-pages .scroller{max-height:calc(100vh - 154px);overflow:auto;padding-right:4px}
+.col-settings .panel{background:rgba(252,253,251,.92);border:1px solid var(--line);border-radius:16px;padding:17px;
+  box-shadow:var(--shadow);max-height:calc(100vh - 100px);overflow:auto;animation:riseIn .55s .05s both}
+
+/* -------------------------------------------------------------- controls */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:10px;padding:8px 13px;
+  font-size:13px;font-weight:600;border:1px solid var(--line2);background:#fff;color:var(--ink2);
+  box-shadow:var(--shadow);transition:transform .14s,box-shadow .16s,border-color .16s,background .16s,color .16s;white-space:nowrap}
+.btn:hover{border-color:var(--pine-bd);background:#fff;transform:translateY(-1px);box-shadow:0 6px 14px -8px rgba(15,29,26,.55)}
+.btn:active{transform:translateY(0) scale(.985)}
+.btn[disabled]{opacity:.4;cursor:not-allowed;transform:none;box-shadow:var(--shadow)}
+.btn.sm{padding:6px 11px;font-size:12px;border-radius:9px}
+.btn.primary{background:var(--pine);border-color:var(--pine);color:#fff;box-shadow:0 8px 18px -10px rgba(15,77,64,.95)}
+.btn.primary:hover{background:var(--pine-dk);border-color:var(--pine-dk)}
+.btn.soft{background:var(--amber-lt);border-color:var(--amber-bd);color:#7d5210}
+.btn.soft:hover{background:#f8e8c8}
+.btn.ghost{border-color:transparent;background:transparent;box-shadow:none;color:var(--muted)}
+.btn.ghost:hover{background:var(--pine-lt);color:var(--pine);transform:none}
+.btn svg{width:15px;height:15px}
+.chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line2);background:#fff;color:var(--ink2);
+  font-size:12px;font-weight:600;padding:6px 10px;border-radius:9px;
+  transition:transform .14s,border-color .16s,background .16s,color .16s,box-shadow .16s}
+.chip:hover{border-color:var(--pine-bd);background:var(--pine-lt);color:var(--pine);transform:translateY(-1px)}
+.chip:active{transform:translateY(0)}
+.chip.on{border-color:var(--pine);background:var(--pine);color:#fff;box-shadow:0 6px 14px -8px rgba(15,77,64,.9)}
+.chip.on:hover{background:var(--pine-dk);color:#fff}
+.chip.danger:hover{border-color:#e3a79e;background:var(--rose-lt);color:var(--rose)}
+.chip svg{width:13px;height:13px}
+.inp{width:100%;border:1px solid var(--line2);background:#fff;border-radius:10px;padding:7px 10px;font-size:13px;
+  box-shadow:var(--shadow);outline:none;transition:border-color .15s,box-shadow .15s}
+.inp::placeholder{color:#a9b6ac}
+.inp:focus{border-color:var(--pine);box-shadow:0 0 0 3px var(--pine-lt)}
+select.inp{cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c7770' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 7px center;background-size:13px;padding-right:26px}
+.field{display:block;margin-bottom:11px}
+.field>.lab{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-family:var(--mono);
+  font-size:9.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.field .hint{font-weight:400;letter-spacing:.02em;text-transform:none;color:var(--soft);font-size:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sect{margin-bottom:21px;padding-bottom:2px}
+.sect-t{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--soft);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sect-t::after{content:"";flex:1;height:1px;background:linear-gradient(to right,var(--line2),transparent)}
+.colorwrap{display:flex;align-items:center;gap:8px;border:1px solid var(--line2);background:#fff;border-radius:10px;padding:5px 9px;box-shadow:var(--shadow);transition:border-color .15s}
+.colorwrap:hover{border-color:var(--pine-bd)}
+.colorwrap input[type=color]{width:30px;height:22px;padding:0;border:1px solid var(--line);border-radius:5px;background:#fff;cursor:pointer}
+.colorwrap span{font-family:var(--mono);font-size:10.5px;color:var(--muted);text-transform:uppercase}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 4px;cursor:pointer;border-radius:9px;transition:background .15s}
+.toggle:hover{background:var(--pine-lt)}
+.toggle .tl{font-size:13px;font-weight:600;color:var(--ink2)}
+.toggle .td{display:block;font-size:11px;font-weight:400;color:var(--soft);margin-top:1px}
+.toggle input{display:none}
+.track{position:relative;width:38px;height:21px;border-radius:99px;background:#c2ccc1;transition:background .2s;flex:0 0 auto}
+.track::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:99px;background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .2s cubic-bezier(.3,1.4,.5,1)}
+.toggle input:checked + .track{background:var(--pine)}
+.toggle input:checked + .track::after{left:19px}
+
+/* segmented control with sliding indicator */
+.segment{position:relative;display:grid;gap:5px;background:#eef1ec;border:1px solid var(--line);border-radius:11px;padding:4px}
+.segment.c4{grid-template-columns:repeat(4,1fr)}
+.segment.c2{grid-template-columns:repeat(2,1fr)}
+.seg{position:relative;z-index:2;border:0;background:transparent;border-radius:8px;padding:6px 3px;
+  font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+  display:grid;justify-items:center;gap:4px;transition:color .18s,background .18s,transform .14s}
+.seg svg{width:15px;height:15px;stroke-width:1.9}
+.seg:hover{color:var(--pine);transform:translateY(-1px)}
+.seg.on{background:var(--pine);color:#fff;box-shadow:0 6px 14px -8px rgba(15,77,64,.95)}
+.seg.on:hover{color:#fff}
+.seg .box{display:block;border:1.5px solid currentColor;border-radius:3px}
+
+/* presets */
+.presets{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.preset{border:1px solid var(--line2);background:#fff;border-radius:11px;padding:9px;text-align:left;
+  transition:transform .15s,border-color .16s,box-shadow .16s}
+.preset:hover{border-color:var(--pine);transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.preset .sw{display:flex;gap:3px;margin-bottom:7px}
+.preset .sw i{width:22px;height:13px;border-radius:3px;border:1px solid}
+.preset span{font-size:12px;font-weight:600;color:var(--ink2)}
+.preset small{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--soft);margin-top:2px;text-transform:uppercase}
+
+/* ------------------------------------------------------------ paste zone */
+.pastezone{position:relative;border:2px dashed var(--line2);border-radius:18px;background:rgba(255,255,255,.7);
+  padding:20px 16px 12px;transition:border-color .18s,background .18s,box-shadow .2s;overflow:hidden}
+.pastezone:hover{border-color:var(--pine-bd);background:#fff}
+.pastezone.focus{border-color:var(--pine);background:#f7fbf9;box-shadow:0 0 0 4px var(--pine-lt)}
+.pastezone.drag{border-color:var(--amber);background:var(--amber-lt);box-shadow:0 0 0 4px #f3e3c2}
+#pasteCatcher{position:absolute;inset:0;width:100%;height:100%;opacity:0;resize:none;border:none;outline:none;
+  background:transparent;color:transparent;cursor:text;z-index:5;padding:0}
+.pz-body{position:relative;z-index:1;pointer-events:none;text-align:center;display:grid;gap:9px;justify-items:center}
+.pz-icon{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;background:var(--pine);color:#fff;
+  transition:background .2s,transform .25s cubic-bezier(.3,1.5,.5,1);box-shadow:0 10px 20px -12px rgba(15,77,64,1)}
+.pastezone.focus .pz-icon,.pastezone.drag .pz-icon{background:var(--amber);transform:scale(1.07) rotate(-4deg)}
+.pz-icon svg{width:22px;height:22px}
+.pz-title{font-family:var(--display);font-size:15.5px;font-weight:600;letter-spacing:-.015em}
+.pz-sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+.pz-tools{position:relative;z-index:6;display:flex;flex-wrap:wrap;align-items:center;gap:11px 18px;
+  margin-top:15px;padding-top:12px;border-top:1px solid var(--line);font-size:12px}
+.check{display:inline-flex;align-items:center;gap:7px;color:var(--ink2);font-weight:500;cursor:pointer}
+.check input{display:none}
+.check .bx{width:17px;height:17px;border:1.5px solid var(--line2);border-radius:5px;background:#fff;display:grid;place-items:center;transition:.15s;flex:0 0 auto}
+.check .bx svg{width:11px;height:11px;stroke:#fff;opacity:0;transition:.15s}
+.check:hover .bx{border-color:var(--pine-bd)}
+.check input:checked + .bx{background:var(--pine);border-color:var(--pine)}
+.check input:checked + .bx svg{opacity:1}
+.check.dupe{color:var(--ink2)}
+.check.dupe input:checked ~ .dupe-lab{color:var(--pine)}
+.mini-num{width:60px;text-align:center;padding:5px 6px;border:1px solid var(--line2);border-radius:8px;outline:none;background:#fff;transition:.15s}
+.mini-num:focus{border-color:var(--pine);box-shadow:0 0 0 3px var(--pine-lt)}
+.mini-num:disabled{background:#f2f4f1;color:#a9b6ac;cursor:not-allowed}
+/* inline "how many copies" stepper used by Duplicate / Duplicate all */
+.dupwrap{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line2);background:#fff;border-radius:10px;
+  padding:3px 6px 3px 8px;box-shadow:var(--shadow);transition:border-color .16s}
+.dupwrap:hover{border-color:var(--pine-bd)}
+.dupwrap:focus-within{border-color:var(--pine);box-shadow:0 0 0 3px var(--pine-lt)}
+.dupwrap .dupin{width:40px;text-align:center;padding:3px 2px;border:1px solid var(--line);border-radius:7px;
+  font-family:var(--mono);font-size:11.5px;font-weight:600;outline:none;background:#fbfcfb;transition:.15s}
+.dupwrap .dupin:focus{border-color:var(--pine);background:#fff}
+.dupwrap .chip{border:none;box-shadow:none;padding:4px 8px;font-size:12px}
+.dupwrap .chip:hover{background:var(--pine-lt)}
+.dupwrap em{font-family:var(--mono);font-size:9.5px;font-style:normal;letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+
+/* ------------------------------------------------------------- page list */
+.pl-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.pl-links{display:flex;align-items:center;gap:10px}
+.link{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--soft);transition:color .15s}
+.link:hover{color:var(--pine)}
+.link.danger:hover{color:var(--rose)}
+.pagecard{position:relative;border:1px solid var(--line);background:#fff;border-radius:13px;padding:10px;margin-bottom:9px;
+  cursor:pointer;box-shadow:var(--shadow);
+  transition:opacity .3s ease,transform .17s cubic-bezier(.2,.7,.3,1),border-color .16s,box-shadow .18s}
+.pagecard.reveal{opacity:0;transform:translateY(9px)}
+.pagecard.reveal.in{opacity:1;transform:none;transition:opacity .34s ease,transform .34s cubic-bezier(.2,.7,.3,1),border-color .16s,box-shadow .18s}
+.pagecard:hover{border-color:var(--pine-bd);transform:translateX(3px);box-shadow:var(--shadow-md)}
+.pagecard.on{border-color:var(--pine);box-shadow:var(--shadow-md),inset 3px 0 0 var(--amber)}
+.pagecard.fresh{animation:freshPulse .9s ease-out}
+.pagecard.dragging{opacity:.35}
+.pagecard.over{border-color:var(--amber);box-shadow:0 0 0 2px var(--amber-bd)}
+.pc-top{display:flex;align-items:flex-start;gap:8px}
+.pc-grip{width:15px;height:15px;color:#c6d0c5;flex:0 0 auto;margin-top:3px;cursor:grab;transition:color .15s}
+.pagecard:hover .pc-grip{color:var(--pine-bd)}
+.pc-idx{width:24px;height:24px;flex:0 0 auto;border-radius:7px;display:grid;place-items:center;font-family:var(--mono);
+  font-size:11px;font-weight:600;background:#eef1ec;color:var(--muted);transition:.16s}
+.pagecard.on .pc-idx{background:var(--pine);color:#fff}
+.pc-name{font-family:var(--display);font-size:13.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-meta{font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;color:var(--soft);margin-top:2px}
+.pc-meta .copy{color:var(--amber);font-weight:600}
+.pc-thumb{margin-top:8px;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.pc-thumb table{width:100%;table-layout:fixed}
+.pc-thumb td{border:1px solid var(--line);padding:1px 3px;font-size:7.5px;line-height:1.4;color:var(--soft);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#fff}
+.pc-thumb tr.h td{background:var(--pine);color:#eaf3ee;font-weight:600}
+.pc-acts{display:flex;justify-content:flex-end;gap:2px;margin-top:7px;opacity:0;transform:translateY(-2px);transition:.17s}
+.pagecard:hover .pc-acts,.pagecard.on .pc-acts{opacity:1;transform:none}
+.iconbtn{padding:5px;border-radius:7px;color:var(--soft);display:grid;place-items:center;transition:.14s}
+.iconbtn svg{width:14px;height:14px}
+.iconbtn:hover{background:var(--pine-lt);color:var(--pine)}
+.iconbtn.danger:hover{background:var(--rose-lt);color:var(--rose)}
+.iconbtn[disabled]{opacity:.25;cursor:not-allowed;background:none}
+.empty-list{border:1px dashed var(--line2);border-radius:13px;padding:20px 12px;text-align:center;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--soft);line-height:1.8}
+
+/* ---------------------------------------------------------------- editor */
+.card{background:rgba(252,253,251,.88);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
+.ed-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px}
+.badge-n{width:28px;height:28px;border-radius:9px;background:var(--pine);color:#fff;display:grid;place-items:center;
+  font-family:var(--mono);font-size:12px;font-weight:600;box-shadow:inset 0 -2px 0 rgba(0,0,0,.2)}
+#pageTitleInput{max-width:230px}
+.ed-info{margin-left:auto;display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.03em;color:var(--muted);font-variant-numeric:tabular-nums}
+#zoomSel{width:auto;padding:5px 24px 5px 9px;font-size:11.5px;font-family:var(--mono)}
+.paperhost{padding:16px;background:#e6eae4;border-radius:0 0 17px 17px;overflow:auto;
+  background-image:linear-gradient(to right,rgba(15,77,64,.04) 1px,transparent 1px),linear-gradient(to bottom,rgba(15,77,64,.04) 1px,transparent 1px);
+  background-size:22px 22px}
+.paper-scale{transform-origin:top left;position:absolute;top:0;left:0}
+.paper-box{position:relative}
+.paper{position:relative;background:#fff;box-shadow:0 14px 40px -16px rgba(15,29,26,.5);outline:1px solid #d7ddd5;
+  animation:sheetIn .34s cubic-bezier(.2,.7,.3,1) both}
+.pbreak{position:absolute;left:0;right:0;border-top:2px dashed #e3a79e;z-index:20;pointer-events:none}
+.pbreak b{position:absolute;right:8px;top:-10px;background:var(--rose-lt);color:var(--rose);font-family:var(--mono);
+  font-size:8.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:5px}
+.pfoot{position:absolute;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;font-size:9px;color:#93a49b;pointer-events:none}
+.pfoot span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.paper td[contenteditable="true"]{transition:background .15s}
+.paper td[contenteditable="true"]:hover{background:#f6faf7 !important}
+.paper td[contenteditable="true"]:focus{outline:2px solid var(--amber);outline-offset:-2px;background:#fffdf7 !important}
+.gut{border:1px dashed #c6d0c5 !important;background:#f6f8f5 !important;color:var(--soft) !important;
+  font-family:var(--mono) !important;font-size:9px !important;text-align:center !important;padding:2px !important;width:26px;font-weight:600 !important;line-height:1.5 !important}
+.gut .x{padding:1px;border-radius:4px;color:#a9b6ac;display:inline-grid;place-items:center;transition:.14s}
+.gut .x:hover{background:var(--rose-lt);color:var(--rose)}
+.gut .x.al:hover{background:var(--amber-lt);color:var(--amber)}
+.gut .x.on{background:var(--amber-lt);color:var(--amber)}
+.gut .x svg{width:10px;height:10px}
+.addbtn{display:inline-flex;align-items:center;gap:4px;border:1px dashed var(--line2);border-radius:8px;padding:4px 9px;
+  font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+  margin:9px 6px 0 0;transition:.15s}
+.addbtn:hover{border-color:var(--pine);color:var(--pine);background:var(--pine-lt)}
+.addbtn svg{width:11px;height:11px}
+.edit-hint{text-align:center;font-size:11px;color:var(--soft);padding:9px 0 3px}
+
+/* ----------------------------------------------------------- empty state */
+.empty{padding:40px 24px;text-align:center}
+.empty .ic{width:54px;height:54px;border-radius:15px;background:var(--pine);color:#fff;display:grid;place-items:center;
+  margin:0 auto 16px;position:relative;overflow:hidden;box-shadow:0 14px 28px -16px rgba(15,77,64,1)}
+.empty .ic::after{content:"";position:absolute;inset:auto 0 0 0;height:5px;background:var(--amber)}
+.empty .ic svg{width:26px;height:26px;position:relative}
+.empty h2{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:-.03em}
+.empty p{color:var(--muted);margin-top:5px;font-size:13px}
+.steps{display:grid;gap:10px;max-width:660px;margin:24px auto 0;text-align:left}
+@media (min-width:660px){.steps{grid-template-columns:1fr 1fr}}
+.step{display:flex;gap:11px;border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px;
+  transition:transform .16s,border-color .16s,box-shadow .16s;animation:cardIn .4s both}
+.step:nth-child(2){animation-delay:.05s}.step:nth-child(3){animation-delay:.1s}.step:nth-child(4){animation-delay:.15s}
+.step:hover{transform:translateY(-2px);border-color:var(--pine-bd);box-shadow:var(--shadow-md)}
+.step b{width:23px;height:23px;flex:0 0 auto;border-radius:7px;background:var(--amber-lt);color:#7d5210;
+  border:1px solid var(--amber-bd);display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:600}
+.step span{font-size:12.5px;color:var(--ink2);line-height:1.6}
+
+/* ----------------------------------------------------------------- modal */
+.overlay{position:fixed;inset:0;z-index:60;background:rgba(15,29,26,.6);backdrop-filter:blur(4px);display:flex;padding:18px;animation:riseIn .2s both}
+.overlay[hidden]{display:none}
+.modal{margin:auto;width:100%;max-width:1020px;height:100%;background:#fff;border-radius:17px;display:flex;
+  flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg);animation:cardIn .28s cubic-bezier(.2,.7,.3,1) both}
+.modal-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-bottom:1px solid var(--line)}
+.modal-h h2{font-family:var(--display);font-size:15px;font-weight:700;letter-spacing:-.02em}
+.modal-h p{font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--soft);margin-top:3px}
+.modal-b{flex:1;min-height:0;background:#e6eae4}
+.modal-b iframe{width:100%;height:100%;border:none}
+.modal-b .msg{height:100%;display:grid;place-items:center;text-align:center;padding:28px;font-size:13px;color:var(--muted);line-height:1.7}
+.drawer{position:fixed;inset:0;z-index:55;display:flex;justify-content:flex-end}
+.drawer[hidden]{display:none}
+.drawer .scrim{position:absolute;inset:0;background:rgba(15,29,26,.42);animation:riseIn .2s both}
+.drawer .sheet{position:relative;width:340px;max-width:89vw;height:100%;background:#fcfdfb;overflow:auto;padding:17px;box-shadow:var(--shadow-lg);animation:slideIn .28s cubic-bezier(.2,.7,.3,1) both}
+@keyframes slideIn{from{transform:translateX(26px);opacity:.4}to{transform:none;opacity:1}}
+.drawer .sheet-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
+.drawer .sheet-h h2{font-family:var(--display);font-size:15px;font-weight:700;letter-spacing:-.02em}
+
+/* ---------------------------------------------------------------- toasts */
+#toasts{position:fixed;right:16px;bottom:16px;z-index:80;display:grid;gap:9px;justify-items:end}
+.toast{border:1px solid;border-radius:12px;padding:10px 15px;font-size:13px;font-weight:500;box-shadow:var(--shadow-md);
+  animation:toastIn .24s cubic-bezier(.2,.7,.3,1) both;max-width:350px;background:#fff}
+.toast.ok{border-color:var(--pine-bd);color:var(--pine);background:var(--pine-lt)}
+.toast.err{border-color:#e3a79e;color:var(--rose);background:var(--rose-lt)}
+
+footer.foot{max-width:1560px;margin:0 auto;padding:8px 16px 28px;text-align:center;font-size:11px;color:var(--soft);line-height:1.9}
+kbd{font-family:var(--mono);background:#fff;border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;
+  padding:1px 5px;font-size:10px;font-weight:600;color:var(--ink2)}
+
+/* ------------------------------------------------------- print fallback  */
+#printRoot{display:none}
+@media print{
+  html,body{background:#fff !important}
+  body>*{display:none !important}
+  #printRoot{display:block !important}
+  #printRoot .psheet{page-break-after:always;break-after:page}
+  #printRoot .psheet:last-child{page-break-after:auto;break-after:auto}
+  #printRoot h2{margin:0 0 6px;font-weight:700}
+  #printRoot table{width:100%;border-collapse:collapse}
+  #printRoot thead{display:table-header-group}
+  #printRoot tr{break-inside:avoid;page-break-inside:avoid}
+}
+</style>
+</head>
+
+<body>
+<!-- ======================================================== reusable svg -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <g id="i-table" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16M15 4v16"/></g>
+    <g id="i-clip" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="8" y="3" width="8" height="4" rx="1"/>
+      <path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2M9 12h6M9 16h4"/></g>
+    <g id="i-pdf" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>
+      <path d="M8.4 17.2v-3.4h1.1a1.05 1.05 0 0 1 0 2.1H8.4M13.4 17.2v-3.4h.85a1.7 1.7 0 0 1 0 3.4zM17.6 13.8h1.7M17.6 15.5h1.3"/></g>
+    <g id="i-eye" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></g>
+    <g id="i-print" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/>
+      <rect x="6" y="14" width="12" height="7" rx="1"/></g>
+    <g id="i-cog" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-2.9-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3.2 14H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.1-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3.2V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 2.9 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.1 2.9H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z"/></g>
+    <g id="i-up" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></g>
+    <g id="i-down" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></g>
+    <g id="i-copy" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></g>
+    <g id="i-trash" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 7h16M10 11v6M14 11v6M5 7l1 13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-13M9 7V4h6v3"/></g>
+    <g id="i-pencil" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></g>
+    <g id="i-x" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></g>
+    <g id="i-check" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></g>
+    <g id="i-plus" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></g>
+    <g id="i-upload" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 9l5-5 5 5M12 4v12"/></g>
+    <g id="i-spark" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9zM19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></g>
+    <g id="i-grip" fill="currentColor"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/>
+      <circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></g>
+    <!-- alignment glyphs -->
+    <g id="i-al-left" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+      <path d="M3 5h18M3 10h11M3 15h15M3 20h8"/></g>
+    <g id="i-al-center" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+      <path d="M3 5h18M6.5 10h11M4.5 15h15M8 20h8"/></g>
+    <g id="i-al-right" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+      <path d="M3 5h18M10 10h11M6 15h15M13 20h8"/></g>
+    <g id="i-al-auto" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+      <path d="M5 9h14M5 15h14M10.5 4l-2 16M16.5 4l-2 16"/></g>
+    <!-- stacked-copies glyph for the duplicate controls -->
+    <g id="i-copies" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="8" y="7" width="13" height="13" rx="2"/><path d="M4 16V5a2 2 0 0 1 2-2h9"/></g>
+  </defs>
+</svg>
+
+<!-- ================================================================ topbar -->
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="logo">
+      <span class="logo-mark"><svg viewBox="0 0 24 24"><use href="#i-table"/></svg></span>
+      <div>
+        <h1>Sheet &rarr; PDF</h1>
+        <p>Paste &middot; page &middot; export</p>
+      </div>
+    </div>
+    <input id="docTitle" class="inp" style="max-width:230px" placeholder="Document title" />
+    <span class="count-pill mono" id="countPill">0 pages &middot; 0 rows</span>
+    <div class="spacer"></div>
+    <div class="tb-actions">
+      <button class="btn sm" id="btnDesign" style="display:none"><svg viewBox="0 0 24 24"><use href="#i-cog"/></svg>Design</button>
+      <button class="btn sm" id="btnPrint" title="Print / Save as PDF"><svg viewBox="0 0 24 24"><use href="#i-print"/></svg>Print</button>
+      <button class="btn sm" id="btnPreview"><svg viewBox="0 0 24 24"><use href="#i-eye"/></svg>Preview</button>
+      <button class="btn sm primary" id="btnExport"><svg viewBox="0 0 24 24"><use href="#i-pdf"/></svg>Export PDF</button>
+    </div>
+  </div>
+</header>
+
+<!-- ================================================================ layout -->
+<div class="layout">
+
+  <!-- ---------------------------------------------------------- page list -->
+  <aside class="col-pages">
+    <div class="sticky">
+      <div class="pl-head">
+        <h2 class="sect-t" style="margin:0;flex:0 0 auto">Pages</h2>
+        <div class="pl-links">
+          <button class="link" id="btnDupeAll" title="Duplicate every page N times (uses the copies box in the editor)">Duplicate all</button>
+          <button class="link danger" id="btnClear">Clear all</button>
+        </div>
+      </div>
+      <div class="scroller"><ol id="pageList"></ol></div>
+    </div>
+  </aside>
+
+  <!-- -------------------------------------------------------------- main -->
+  <main style="min-width:0;display:grid;gap:18px">
+
+    <!-- paste zone -->
+    <section class="pastezone" id="pasteZone">
+      <textarea id="pasteCatcher" aria-label="Paste spreadsheet data here"></textarea>
+      <div class="pz-body">
+        <div class="pz-icon"><svg viewBox="0 0 24 24"><use href="#i-clip"/></svg></div>
+        <div>
+          <p class="pz-title" id="pzTitle">Click here, then paste your spreadsheet selection</p>
+          <p class="pz-sub" id="pzSub">Each paste is saved as its own page</p>
+        </div>
+      </div>
+      <div class="pz-tools">
+        <label class="check"><input type="checkbox" id="optHeader" checked><span class="bx"><svg viewBox="0 0 24 24" fill="none"><use href="#i-check"/></svg></span>First row is header</label>
+        <label class="check"><input type="checkbox" id="optSplit"><span class="bx"><svg viewBox="0 0 24 24" fill="none"><use href="#i-check"/></svg></span>Split blank-row blocks</label>
+        <label class="check" style="gap:6px">Max rows / page
+          <input type="number" min="0" id="optRows" class="mini-num" value="0">
+          <span style="color:var(--soft);font-family:var(--mono);font-size:10px">(0 = off)</span>
+        </label>
+        <label class="check dupe" title="Store several identical copies of every pasted page" style="gap:6px">
+          <input type="checkbox" id="optDupe">
+          <span class="bx"><svg viewBox="0 0 24 24" fill="none"><use href="#i-check"/></svg></span>
+          <span class="dupe-lab">Replicate pages &times;</span>
+          <input type="number" min="1" max="99" id="optDupeCount" class="mini-num" value="2" disabled>
+          <span style="color:var(--soft);font-family:var(--mono);font-size:10px">(copies per paste)</span>
+        </label>
+        <span class="spacer"></span>
+        <input type="file" id="fileInput" accept=".csv,.tsv,.txt,text/csv,text/plain" multiple hidden>
+        <button class="btn sm" id="btnFile"><svg viewBox="0 0 24 24"><use href="#i-upload"/></svg>Import file</button>
+        <button class="btn sm soft" id="btnSample"><svg viewBox="0 0 24 24"><use href="#i-spark"/></svg>Sample data</button>
+      </div>
+    </section>
+
+    <!-- editor -->
+    <section class="card" id="editor" hidden>
+      <div class="ed-bar">
+        <span class="badge-n mono" id="pageBadge">1</span>
+        <input class="inp" id="pageTitleInput" placeholder="Page title">
+        <button class="chip" id="chipHeader">Header row</button>
+        <button class="chip" id="chipEdit"><svg viewBox="0 0 24 24"><use href="#i-pencil"/></svg><span>Edit cells</span></button>
+        <button class="chip" id="chipAlign" title="Cycle alignment for every body column"><svg viewBox="0 0 24 24"><use href="#i-al-center"/></svg><span>Center all</span></button>
+        <button class="chip" id="chipSplit">Split&hellip;</button>
+        <button class="chip" id="chipTranspose">Transpose</button>
+        <span class="dupwrap" title="Duplicate this page once per copy">
+          <em>&times;</em>
+          <input class="dupin" id="dupCount" type="number" min="1" max="99" value="1" aria-label="Number of copies">
+          <button class="chip" id="chipDup"><svg viewBox="0 0 24 24"><use href="#i-copies"/></svg>Duplicate</button>
+        </span>
+        <button class="chip" id="chipDupAll" title="Duplicate every page once per copy"><span>Duplicate all</span></button>
+        <button class="chip danger" id="chipDel"><svg viewBox="0 0 24 24"><use href="#i-trash"/></svg>Delete</button>
+        <div class="ed-info">
+          <span id="pageDims"></span>
+          <select class="inp" id="zoomSel">
+            <option value="fit">Fit</option><option value="0.5">50%</option><option value="0.75">75%</option>
+            <option value="1">100%</option><option value="1.25">125%</option>
+          </select>
+        </div>
+      </div>
+      <div class="paperhost" id="paperHost"></div>
+      <p class="edit-hint" id="editHint" hidden>Click any cell to edit &middot; dashed gutters delete rows &amp; columns &middot; the <span class="mono">#</span> gutter button cycles that column's alignment</p>
+    </section>
+
+    <!-- empty state -->
+    <section class="card empty" id="emptyState">
+      <div class="ic"><svg viewBox="0 0 24 24"><use href="#i-pdf"/></svg></div>
+      <h2>No pages yet</h2>
+      <p>Paste your first table to start building the document.</p>
+      <ol class="steps">
+        <li class="step"><b>1</b><span>Select cells in Excel, Google Sheets or Numbers and copy them</span></li>
+        <li class="step"><b>2</b><span>Click the paste area above and press <kbd>Ctrl</kbd>+<kbd>V</kbd> &mdash; a new page is stored</span></li>
+        <li class="step"><b>3</b><span>Repeat for every table: each paste becomes its own separate page</span></li>
+        <li class="step"><b>4</b><span>Need several identical pages? Tick <b>Replicate pages &times;N</b> or use <b>Duplicate</b> with a copy count</span></li>
+        <li class="step"><b>5</b><span>Hit <b>Export PDF</b> &mdash; all pages land in one bordered, multi-page PDF</span></li>
+      </ol>
+      <button class="btn soft" style="margin-top:22px" id="btnSample2">Load sample pages</button>
+    </section>
+  </main>
+
+  <!-- --------------------------------------------------------- settings -->
+  <aside class="col-settings">
+    <div class="sticky"><div class="panel" id="settingsHost"></div></div>
+  </aside>
+</div>
+
+<footer class="foot">
+  Everything runs locally in your browser &mdash; pages are stored on this device and never uploaded.<br>
+  <kbd>Ctrl</kbd>+<kbd>V</kbd> paste a page &middot; <kbd>Ctrl</kbd>+<kbd>E</kbd> export PDF &middot; <kbd>Ctrl</kbd>+<kbd>P</kbd> print &middot;
+  <kbd>Ctrl</kbd>+<kbd>D</kbd> duplicate the current page
+</footer>
+
+<!-- ------------------------------------------------------------- drawer -->
+<div class="drawer" id="drawer" hidden>
+  <div class="scrim" data-close-drawer></div>
+  <div class="sheet">
+    <div class="sheet-h">
+      <h2>Design &amp; layout</h2>
+      <button class="btn ghost sm" data-close-drawer><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
+    </div>
+    <div id="settingsHostMobile"></div>
+  </div>
+</div>
+
+<!-- -------------------------------------------------------- pdf preview -->
+<div class="overlay" id="pdfModal" hidden>
+  <div class="modal">
+    <div class="modal-h">
+      <div>
+        <h2>PDF preview</h2>
+        <p id="pdfModalSub"></p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn sm primary" id="btnModalDownload">Download PDF</button>
+        <button class="btn ghost sm" id="btnModalClose"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
+      </div>
+    </div>
+    <div class="modal-b" id="pdfModalBody"></div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+<div id="printRoot"></div>
+
+<!-- jsPDF + AutoTable (vector PDF engine). If offline, the app automatically
+     falls back to the browser's native "Print → Save as PDF". -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@3.0.1/dist/jspdf.umd.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@5.0.2/dist/jspdf.plugin.autotable.min.js" crossorigin="anonymous"></script>
+<script>
+/* ==========================================================================
+   SHEET -> PDF  ·  application logic
+   ========================================================================== */
+(function () {
+"use strict";
+
+var $  = function (s, r) { return (r || document).querySelector(s); };
+var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+var PT = 96 / 72;                       // pt -> css px
+var STORAGE = "sheet2pdf.single.v3";
+var uid = function () { return Math.random().toString(36).slice(2, 10); };
+var esc = function (s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+};
+
+/* ------------------------------------------------------------- constants */
+var PAGE_DIMS = {
+  a4:     { w: 595.28, h: 841.89, label: "A4 · 210 × 297 mm" },
+  letter: { w: 612,    h: 792,    label: "Letter · 8.5 × 11 in" },
+  legal:  { w: 612,    h: 1008,   label: "Legal · 8.5 × 14 in" }
+};
+var FONT_STACK = {
+  helvetica: '"Helvetica Neue",Helvetica,Arial,sans-serif',
+  times: '"Times New Roman",Times,serif',
+  courier: '"Courier New",Courier,monospace'
+};
+var DEFAULTS = {
+  docTitle: "Spreadsheet Export", pageSize: "a4", orientation: "portrait",
+  margin: 40, fontSize: 9, cellPadding: 4,
+  borderStyle: "all", borderColor: "#334155", borderWidth: 0.5,
+  headerFill: "#1e293b", headerTextColor: "#ffffff",
+  zebra: true, zebraColor: "#f1f5f9",
+  /* alignment ---------------------------------------------------------- */
+  bodyAlign: "auto",          /* auto | left | center | right */
+  headerAlign: "left",        /* left | center | right | follow */
+  /* -------------------------------------------------------------------- */
+  showTitles: true, showPageNumbers: true, showTimestamp: false, footerText: "",
+  repeatHeader: true, rowNumbers: false, alignNumbersRight: true, fontFamily: "helvetica"
+};
+var PRESETS = [
+  { name: "Report",   note: "dark head", s: {
+      borderStyle:"all", borderColor:"#334155", headerFill:"#1e293b", headerTextColor:"#ffffff",
+      zebra:true, zebraColor:"#f1f5f9", borderWidth:0.5, fontFamily:"helvetica",
+      bodyAlign:"auto", headerAlign:"left" } },
+  { name: "Ledger",   note: "mono grid", s: {
+      borderStyle:"all", borderColor:"#0f4d40", headerFill:"#0f4d40", headerTextColor:"#ffffff",
+      zebra:true, zebraColor:"#eef5f1", borderWidth:0.6, fontFamily:"courier",
+      bodyAlign:"auto", headerAlign:"center" } },
+  { name: "Minimal",  note: "hairlines", s: {
+      borderStyle:"horizontal", borderColor:"#94a3b8", headerFill:"#ffffff", headerTextColor:"#0f172a",
+      zebra:false, zebraColor:"#f8fafc", borderWidth:0.4, fontFamily:"helvetica",
+      bodyAlign:"left", headerAlign:"left" } },
+  { name: "Centered", note: "all centred", s: {
+      borderStyle:"all", borderColor:"#a9cfc0", headerFill:"#e3efe9", headerTextColor:"#0f4d40",
+      zebra:true, zebraColor:"#f7fbf8", borderWidth:0.5, fontFamily:"helvetica",
+      bodyAlign:"center", headerAlign:"center" } }
+];
+var SAMPLES = [
+  { title: "Q1 Revenue by Region", rows: [
+    ["Region","Jan","Feb","Mar","Q1 Total","YoY %"],
+    ["North America","182,400","196,120","211,880","590,400","12.4%"],
+    ["EMEA","143,950","151,300","149,770","445,020","6.1%"],
+    ["APAC","98,720","112,450","128,900","340,070","22.8%"],
+    ["LATAM","41,300","39,880","47,610","128,790","9.3%"],
+    ["Middle East","27,640","31,020","33,410","92,070","15.7%"],
+    ["Africa","18,220","19,940","21,560","59,720","11.2%"],
+    ["Total","512,230","550,710","593,130","1,656,070","12.9%"]]},
+  { title: "Inventory Snapshot — Warehouse B", rows: [
+    ["SKU","Product","Category","On hand","Reorder at","Unit cost","Status"],
+    ["WB-1001","Aluminium bracket 40mm","Hardware","1,240","500","$2.15","OK"],
+    ["WB-1014","Stainless bolt M8 (100pk)","Fasteners","312","400","$11.40","Reorder"],
+    ["WB-1022","Rubber gasket 60mm","Seals","2,870","800","$0.85","OK"],
+    ["WB-1038","Hex nut M8 (500pk)","Fasteners","96","250","$18.20","Critical"],
+    ["WB-1047","Steel plate 2mm 1×1m","Raw stock","184","100","$34.90","OK"],
+    ["WB-1053","Nylon washer 8mm (1000pk)","Fasteners","640","300","$9.75","OK"],
+    ["WB-1061","Silicone sealant 300ml","Consumables","228","250","$6.30","Reorder"],
+    ["WB-1079","Copper tube 12mm × 3m","Raw stock","142","80","$21.10","OK"],
+    ["WB-1084","Pressure valve 1/2 in","Fittings","58","60","$47.65","Reorder"]]},
+  { title: "Project Milestones 2026", rows: [
+    ["Phase","Owner","Start","Due","Progress","Notes"],
+    ["Discovery","A. Mensah","2026-01-06","2026-01-31","100%","Signed off by steering group"],
+    ["Data migration","L. Rossi","2026-02-03","2026-03-14","72%","Legacy exports pending"],
+    ["Pilot rollout","S. Nakamura","2026-03-17","2026-04-25","35%","Two sites live"],
+    ["Training","R. Patel","2026-04-07","2026-05-16","10%","Materials in review"],
+    ["Full launch","A. Mensah","2026-05-19","2026-06-30","0%","Depends on pilot sign-off"]]}
+];
+
+/* ----------------------------------------------------------------- state */
+var state = {
+  pages: [], settings: {},
+  options: { header: true, split: false, rows: 0, dupe: false, dupeCount: 2 },
+  activeId: null, editing: false, zoom: "fit", freshId: null
+};
+
+(function load() {
+  var raw = null;
+  try { raw = JSON.parse(localStorage.getItem(STORAGE) || "null"); } catch (e) {}
+  state.settings = {};
+  for (var k in DEFAULTS) state.settings[k] = DEFAULTS[k];
+  if (raw) {
+    if (Array.isArray(raw.pages)) state.pages = raw.pages;
+    if (raw.settings) for (var j in raw.settings) if (j in DEFAULTS) state.settings[j] = raw.settings[j];
+    if (raw.options) for (var o in raw.options) state.options[o] = raw.options[o];
+  }
+  state.pages.forEach(function (p) { if (!p.colAlign) p.colAlign = {}; });
+  state.activeId = state.pages.length ? state.pages[0].id : null;
+})();
+
+var saveTimer = null;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function () {
+    try {
+      localStorage.setItem(STORAGE, JSON.stringify({
+        pages: state.pages, settings: state.settings, options: state.options }));
+    } catch (e) { /* quota exceeded – ignore */ }
+  }, 220);
+}
+function activeIndex() {
+  for (var i = 0; i < state.pages.length; i++) if (state.pages[i].id === state.activeId) return i;
+  return -1;
+}
+function activePage() { var i = activeIndex(); return i < 0 ? null : state.pages[i]; }
+
+/* =========================================================================
+   DUPLICACY HELPERS
+   - cloneRows: deep-ish copy so copies can be edited independently
+   - copies():  shared copy count (editor stepper > paste-zone stepper > 1)
+   - suffix:    titles stay unique and readable
+   ========================================================================= */
+function cloneRows(rows) {
+  return (rows || []).map(function (r) { return r.slice(); });
+}
+function clampCopies(v, fallback) {
+  var n = Number(v);
+  if (!isFinite(n) || n < 1) n = fallback == null ? 1 : fallback;
+  return Math.max(1, Math.min(99, Math.round(n)));
+}
+function copies(fallback) {
+  var el = $("#dupCount");
+  if (el && el.value !== "" && isFinite(Number(el.value)) && Number(el.value) >= 1) {
+    return clampCopies(el.value);
+  }
+  if (state.options.dupe) return clampCopies(state.options.dupeCount, fallback || 2);
+  return clampCopies(fallback == null ? 1 : fallback);
+}
+function copySuffix(k, n) {
+  return n > 1 ? " (copy " + k + ")" : " (copy)";
+}
+/* turn N source pages into N × copies pages (independent, editable clones) */
+function replicate(sources, times) {
+  var n = clampCopies(times, 1), out = [];
+  if (n <= 1) {
+    sources.forEach(function (s) { out.push(s); });
+    return { pages: out, copies: 1 };
+  }
+  for (var k = 1; k <= n; k++) {
+    sources.forEach(function (src) {
+      out.push({
+        id: uid(),
+        title: src.title + copySuffix(k, n),
+        rows: cloneRows(src.rows),
+        headerRow: src.headerRow,
+        colAlign: Object.assign({}, src.colAlign || {}),
+        copyOf: src.id, copyIndex: k, copyTotal: n
+      });
+    });
+  }
+  return { pages: out, copies: n };
+}
+function duplicatePage(id, times) {
+  var i = state.pages.map(function (p) { return p.id; }).indexOf(id);
+  if (i < 0) return;
+  var src = state.pages[i];
+  var n = clampCopies(times, 1);
+  var made = [];
+  for (var k = 1; k <= n; k++) {
+    made.push({
+      id: uid(),
+      title: src.title + copySuffix(k, n),
+      rows: cloneRows(src.rows),
+      headerRow: src.headerRow,
+      colAlign: Object.assign({}, src.colAlign || {}),
+      copyIndex: k, copyTotal: n
+    });
+  }
+  var args = [i + 1, 0].concat(made);
+  Array.prototype.splice.apply(state.pages, args);
+  state.activeId = made[0].id;
+  state.freshId = made[0].id;
+  toast(made.length === 1 ? "Page duplicated" : made.length + " copies of “" + src.title + "” created");
+  render(true);
+}
+function duplicateAll(times) {
+  if (!state.pages.length) { toast("Nothing to duplicate yet", "err"); return; }
+  var n = clampCopies(times, 1);
+  var q = "Duplicate all " + state.pages.length + " page" + (state.pages.length === 1 ? "" : "s") +
+          " × " + n + " (adds " + (state.pages.length * n) + " copies)?";
+  if (!confirm(q)) return;
+  var res = replicate(state.pages.slice(), n);
+  state.pages = state.pages.concat(res.pages);
+  state.activeId = res.pages.length ? res.pages[0].id : state.activeId;
+  state.freshId = res.pages.length ? res.pages[0].id : null;
+  toast(state.pages.length + " pages total · added " + res.pages.length + " copies");
+  render(true);
+}
+
+/* =========================================================================
+   ALIGNMENT RESOLUTION
+   per-column override  >  document setting  >  auto (numbers right)
+   ========================================================================= */
+function bodyAlignFor(p, c, nums) {
+  var o = p && p.colAlign ? p.colAlign[c] : null;
+  if (o) return o;
+  var a = state.settings.bodyAlign;
+  if (a === "auto") return (state.settings.alignNumbersRight && nums[c]) ? "right" : "left";
+  return a;
+}
+function headAlignFor(p, c, nums) {
+  var o = p && p.colAlign ? p.colAlign[c] : null;
+  if (o) return o;
+  var h = state.settings.headerAlign;
+  return h === "follow" ? bodyAlignFor(p, c, nums) : h;
+}
+var ALIGN_CYCLE = ["auto", "left", "center", "right"];
+var ALIGN_ICON = { auto: "#i-al-auto", left: "#i-al-left", center: "#i-al-center", right: "#i-al-right" };
+function nextColAlign(cur) { return ALIGN_CYCLE[(ALIGN_CYCLE.indexOf(cur || "auto") + 1) % ALIGN_CYCLE.length]; }
+
+/* =========================================================================
+   1 · PARSING  (clipboard HTML tables + delimited text)
+   ========================================================================= */
+function cellText(el) {
+  var c = el.cloneNode(true);
+  $$("br", c).forEach(function (b) { b.replaceWith("\n"); });
+  $$("p,div", c).forEach(function (b) { b.append("\n"); });
+  return (c.textContent || "").replace(/\u00a0/g, " ")
+    .split("\n").map(function (l) { return l.replace(/[ \t]+/g, " ").trim(); })
+    .join("\n").replace(/^\n+|\n+$/g, "").trim();
+}
+function parseHtmlTable(html) {
+  if (!html || !/<table/i.test(html)) return null;
+  var doc;
+  try { doc = new DOMParser().parseFromString(html, "text/html"); } catch (e) { return null; }
+  var table = doc.querySelector("table");
+  if (!table) return null;
+  var trs = $$("tr", table), grid = [];
+  trs.forEach(function (tr, r) {
+    if (!grid[r]) grid[r] = [];
+    var c = 0;
+    Array.prototype.slice.call(tr.children).forEach(function (cell) {
+      if (!/^(TD|TH)$/i.test(cell.tagName)) return;
+      if (/display:\s*none/i.test(cell.getAttribute("style") || "")) return;
+      while (grid[r][c] !== undefined) c++;
+      var cs = Math.max(1, parseInt(cell.getAttribute("colspan") || "1", 10) || 1);
+      var rs = Math.max(1, parseInt(cell.getAttribute("rowspan") || "1", 10) || 1);
+      var txt = cellText(cell);
+      for (var i = 0; i < rs; i++) for (var j = 0; j < cs; j++) {
+        if (!grid[r + i]) grid[r + i] = [];
+        grid[r + i][c + j] = (i === 0 && j === 0) ? txt : "";
+      }
+      c += cs;
+    });
+  });
+  return normalize(grid);
+}
+function detectDelim(text) {
+  var s = text.split("\n").slice(0, 12).join("\n");
+  var cand = { "\t": (s.match(/\t/g) || []).length, ",": (s.match(/,/g) || []).length,
+               ";": (s.match(/;/g) || []).length, "|": (s.match(/\|/g) || []).length };
+  var best = "\t", n = 0;
+  for (var d in cand) if (cand[d] > n) { best = d; n = cand[d]; }
+  return n === 0 ? "\t" : best;
+}
+/* RFC-4180-ish: supports quoted fields with embedded delimiters/newlines */
+function parseDelimited(text, delim) {
+  var raw = String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\u00a0/g, " ");
+  var d = delim || detectDelim(raw), rows = [], row = [], f = "", q = false;
+  for (var i = 0; i < raw.length; i++) {
+    var ch = raw[i];
+    if (q) {
+      if (ch === '"') { if (raw[i + 1] === '"') { f += '"'; i++; } else { q = false; } }
+      else f += ch;
+    } else if (ch === '"' && f === "") { q = true; }
+    else if (ch === d) { row.push(f); f = ""; }
+    else if (ch === "\n") { row.push(f); rows.push(row); row = []; f = ""; }
+    else f += ch;
+  }
+  row.push(f); rows.push(row);
+  return normalize(rows.map(function (r) { return r.map(function (c) { return c.trim(); }); }));
+}
+function normalize(grid) {
+  var g = (grid || []).map(function (r) {
+    return (r || []).map(function (c) { return c == null ? "" : String(c); });
+  });
+  var w = g.reduce(function (m, r) { return Math.max(m, r.length); }, 0);
+  if (!w) return [];
+  g = g.map(function (r) { var x = r.slice(); while (x.length < w) x.push(""); return x; });
+  var blank = function (r) { return r.every(function (c) { return c.trim() === ""; }); };
+  while (g.length && blank(g[0])) g.shift();
+  while (g.length && blank(g[g.length - 1])) g.pop();
+  if (!g.length) return [];
+  var last = 0;
+  g.forEach(function (r) { r.forEach(function (c, i) { if (c.trim() !== "") last = Math.max(last, i); }); });
+  return g.map(function (r) { return r.slice(0, last + 1); });
+}
+function splitBlocks(grid) {
+  var out = [], cur = [];
+  grid.forEach(function (r) {
+    if (r.every(function (c) { return c.trim() === ""; })) { if (cur.length) out.push(cur); cur = []; }
+    else cur.push(r);
+  });
+  if (cur.length) out.push(cur);
+  return out.map(normalize).filter(function (b) { return b.length; });
+}
+function chunkRows(grid, size, hasHeader) {
+  if (!size || size <= 0) return [grid];
+  var head = hasHeader ? grid[0] : null;
+  var body = hasHeader ? grid.slice(1) : grid;
+  if (body.length <= size) return [grid];
+  var out = [];
+  for (var i = 0; i < body.length; i += size) {
+    var part = body.slice(i, i + size);
+    out.push(head ? [head].concat(part) : part);
+  }
+  return out;
+}
+var NUMRE = /^[-+(]?\s*[$€£¥₹]?\s*\d[\d,.\s']*\s*%?\)?$/;
+function numericCols(rows, hasHeader) {
+  var body = hasHeader ? rows.slice(1) : rows, cols = (rows[0] || []).length, set = {};
+  for (var c = 0; c < cols; c++) {
+    var n = 0, f = 0;
+    body.forEach(function (r) {
+      var v = (r[c] || "").trim(); if (!v) return; f++; if (NUMRE.test(v)) n++;
+    });
+    if (f >= 1 && n / f >= 0.7) set[c] = true;
+  }
+  return set;
+}
+
+/* =========================================================================
+   2 · PAGE ACTIONS
+   ========================================================================= */
+function addGrid(grid, baseName) {
+  var clean = normalize(grid);
+  if (!clean.length) { toast("Nothing table-like was found in that content", "err"); return; }
+  var blocks = state.options.split ? splitBlocks(clean) : [clean];
+  var chunks = [];
+  blocks.forEach(function (b) {
+    chunkRows(b, state.options.rows, state.options.header).forEach(function (c) { chunks.push(c); });
+  });
+  var base = state.pages.length;
+  var made = chunks.map(function (rows, i) {
+    return {
+      id: uid(),
+      title: baseName ? (chunks.length > 1 ? baseName + " (" + (i + 1) + "/" + chunks.length + ")" : baseName)
+                      : "Page " + (base + i + 1),
+      rows: rows,
+      headerRow: !!state.options.header && rows.length > 1,
+      colAlign: {}
+    };
+  });
+  /* duplicacy toggle: store N identical (independent) copies of every new page */
+  var res = replicate(made, state.options.dupe ? copies() : 1);
+  var all = res.pages;
+  state.pages = state.pages.concat(all);
+  state.activeId = all[all.length - 1].id;
+  state.freshId = made[0].id;
+  var total = chunks.reduce(function (n, c) { return n + c.length; }, 0);
+  toast(all.length + " page" + (all.length === 1 ? "" : "s") + " added" +
+        (res.copies > 1 ? " (" + made.length + " × " + res.copies + " copies)" : "") +
+        " · " + total + " rows × " + clean[0].length + " cols");
+  render(true);
+}
+function handleClipboard(html, text) {
+  var grid = parseHtmlTable(html);
+  if (!grid || !grid.length) grid = (text && text.trim()) ? parseDelimited(text) : null;
+  if (!grid || !grid.length) { toast("Clipboard did not contain spreadsheet data", "err"); return; }
+  addGrid(grid);
+}
+function deletePage(id) {
+  state.pages = state.pages.filter(function (p) { return p.id !== id; });
+  if (state.activeId === id) state.activeId = state.pages.length ? state.pages[state.pages.length - 1].id : null;
+  render(true);
+}
+function movePage(i, dir) {
+  var to = i + dir;
+  if (to < 0 || to >= state.pages.length) return;
+  var it = state.pages.splice(i, 1)[0];
+  state.pages.splice(to, 0, it);
+  render(true);
+}
+function reorder(from, to) {
+  var it = state.pages.splice(from, 1)[0];
+  state.pages.splice(to, 0, it);
+  render(true);
+}
+function splitActive() {
+  var p = activePage(); if (!p) return;
+  var ans = prompt("Split this page every how many rows?", "20");
+  var n = Number(ans);
+  if (!ans || !isFinite(n) || n <= 0) return;
+  var chunks = chunkRows(p.rows, n, p.headerRow);
+  if (chunks.length <= 1) { toast("This page already fits within that row count", "err"); return; }
+  var made = chunks.map(function (rows, i) {
+    return { id: uid(), title: p.title + " (" + (i + 1) + "/" + chunks.length + ")",
+             rows: rows, headerRow: p.headerRow, colAlign: Object.assign({}, p.colAlign || {}) };
+  });
+  var args = [activeIndex(), 1].concat(made);
+  Array.prototype.splice.apply(state.pages, args);
+  state.activeId = made[0].id;
+  toast("Split into " + made.length + " pages");
+  render(true);
+}
+function transposeActive() {
+  var p = activePage(); if (!p) return;
+  var cols = (p.rows[0] || []).length, out = [];
+  for (var c = 0; c < cols; c++) out.push(p.rows.map(function (r) { return r[c] || ""; }));
+  p.rows = out; p.colAlign = {};
+  render();
+}
+function centerAllColumns() {
+  var p = activePage(); if (!p) return;
+  var cols = (p.rows[0] || []).length, cur = p.colAlign || {};
+  var allCenter = true;
+  for (var c = 0; c < cols; c++) if (cur[c] !== "center") allCenter = false;
+  p.colAlign = {};
+  if (!allCenter) {
+    for (var k = 0; k < cols; k++) p.colAlign[k] = "center";
+    state.settings.bodyAlign = "center"; state.settings.headerAlign = "center";
+    renderSettings();
+    toast("All columns centred");
+  } else {
+    state.settings.bodyAlign = "auto"; state.settings.headerAlign = "left";
+    renderSettings();
+    toast("Column alignment reset to auto");
+  }
+  render();
+}
+function loadSamples() {
+  var made = SAMPLES.map(function (s) {
+    return { id: uid(), title: s.title, headerRow: true, colAlign: {},
+             rows: s.rows.map(function (r) { return r.slice(); }) };
+  });
+  var res = replicate(made, state.options.dupe ? copies() : 1);
+  state.pages = state.pages.concat(res.pages);
+  state.activeId = made[0].id;
+  state.freshId = made[0].id;
+  toast(res.pages.length + " sample pages added" +
+        (res.copies > 1 ? " (" + made.length + " × " + res.copies + " copies)" : ""));
+  render(true);
+}
+
+/* =========================================================================
+   3 · PDF EXPORT  (jsPDF + AutoTable — vector tables with real borders)
+   ========================================================================= */
+function hexToRgb(hex) {
+  var h = String(hex || "#000").replace("#", "").trim();
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  var n = parseInt(h || "000000", 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function pdfLib() { return (window.jspdf && window.jspdf.jsPDF) ? window.jspdf : null; }
+function pdfReady() {
+  return !!pdfLib() && (typeof window.autoTable === "function" ||
+    typeof window.applyPlugin === "function" ||
+    typeof (window.jspdf || {}).autoTable === "function");
+}
+
+function buildPdf() {
+  var lib = pdfLib();
+  if (!lib) return null;
+  var s = state.settings;
+  var doc = new lib.jsPDF({ orientation: s.orientation, unit: "pt", format: s.pageSize });
+  /* the AutoTable UMD build either patches jsPDF (doc.autoTable) or exposes
+     a global autoTable(doc, options) — support every variant. */
+  var run = function (d, opts) {
+    if (typeof d.autoTable === "function") { d.autoTable(opts); return; }
+    if (typeof window.autoTable === "function") { window.autoTable(d, opts); return; }
+    if (lib && typeof lib.autoTable === "function") { lib.autoTable(d, opts); return; }
+    if (typeof window.applyPlugin === "function") {
+      window.applyPlugin(lib.jsPDF);
+      if (typeof d.autoTable === "function") { d.autoTable(opts); return; }
+    }
+    throw new Error("jsPDF-AutoTable is not available");
+  };
+  var pages = state.pages.filter(function (p) { return p.rows.length; });
+  var pageW = doc.internal.pageSize.getWidth();
+  var pageH = doc.internal.pageSize.getHeight();
+  var titleFs = Math.max(10, s.fontSize + 3);
+  var titleBlock = s.showTitles ? titleFs + 14 : 0;
+
+  if (!pages.length) {
+    doc.setFont(s.fontFamily, "normal"); doc.setFontSize(12); doc.setTextColor(120);
+    doc.text("No data. Paste spreadsheet content to build pages.", s.margin, s.margin + 20);
+    return doc;
+  }
+
+  var bw = Number(s.borderWidth) || 0;
+  var cellLine = s.borderStyle === "all" ? bw
+    : s.borderStyle === "horizontal" ? { top: bw, bottom: bw, left: 0, right: 0 } : 0;
+  var tableLine = s.borderStyle === "none" ? 0 : bw;
+
+  pages.forEach(function (page, idx) {
+    if (idx > 0) doc.addPage();
+    var hasHead = page.headerRow && page.rows.length > 0;
+    var nums = numericCols(page.rows, hasHead);
+    var head = hasHead ? [page.rows[0].slice()] : [];
+    var body = (hasHead ? page.rows.slice(1) : page.rows).map(function (r) { return r.slice(); });
+
+    if (s.rowNumbers) {
+      if (head.length) head = [["#"].concat(head[0])];
+      body = body.map(function (r, i) { return [String(i + 1)].concat(r); });
+    }
+    var off = s.rowNumbers ? 1 : 0, colStyles = {};
+    if (s.rowNumbers) colStyles["0"] = { halign: "center", cellWidth: 26 };
+
+    var sub = 0;
+    run(doc, {
+      head: head.length ? head : undefined,
+      body: body,
+      startY: s.margin + titleBlock,
+      margin: { top: s.margin + titleBlock, right: s.margin, bottom: s.margin + 18, left: s.margin },
+      theme: "grid",
+      tableLineWidth: tableLine,
+      tableLineColor: hexToRgb(s.borderColor),
+      tableWidth: "auto",
+      showHead: s.repeatHeader ? "everyPage" : "firstPage",
+      rowPageBreak: "auto",
+      styles: {
+        font: s.fontFamily, fontSize: s.fontSize, cellPadding: s.cellPadding,
+        lineColor: hexToRgb(s.borderColor), lineWidth: cellLine,
+        overflow: "linebreak", valign: "middle", textColor: [15, 23, 42]
+      },
+      headStyles: {
+        fillColor: hexToRgb(s.headerFill), textColor: hexToRgb(s.headerTextColor),
+        fontStyle: "bold", lineColor: hexToRgb(s.borderColor), lineWidth: cellLine,
+        halign: s.headerAlign === "follow" ? "left" : s.headerAlign
+      },
+      alternateRowStyles: s.zebra ? { fillColor: hexToRgb(s.zebraColor) } : { fillColor: [255, 255, 255] },
+      columnStyles: colStyles,
+      /* columnStyles only reaches the body section, so alignment (incl. the
+         header + per-column overrides) is resolved per cell here. */
+      didParseCell: function (data) {
+        var idx2 = data.column ? data.column.index : null;
+        if (idx2 == null) return;
+        if (s.rowNumbers && idx2 === 0) { data.cell.styles.halign = "center"; return; }
+        var c = idx2 - off;
+        if (c < 0) return;
+        data.cell.styles.halign = data.section === "head"
+          ? headAlignFor(page, c, nums)
+          : bodyAlignFor(page, c, nums);
+      },
+      didDrawPage: function () {
+        if (s.showTitles && page.title.trim()) {
+          var label = sub === 0 ? page.title : page.title + " (cont.)";
+          doc.setFont(s.fontFamily, "bold"); doc.setFontSize(titleFs); doc.setTextColor(15, 23, 42);
+          doc.text(label, s.margin, s.margin + titleFs, { maxWidth: pageW - s.margin * 2 });
+          var rgb = hexToRgb(s.borderColor);
+          doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
+          doc.setLineWidth(Math.max(0.4, bw));
+          doc.line(s.margin, s.margin + titleFs + 6, pageW - s.margin, s.margin + titleFs + 6);
+        }
+        sub++;
+      }
+    });
+  });
+
+  /* footers on every page */
+  var total = doc.getNumberOfPages();
+  for (var i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFont(s.fontFamily, "normal");
+    doc.setFontSize(Math.max(7, s.fontSize - 1));
+    doc.setTextColor(110, 120, 135);
+    var y = pageH - s.margin / 2 - 2, left = [];
+    if (s.docTitle.trim()) left.push(s.docTitle.trim());
+    if (s.footerText.trim()) left.push(s.footerText.trim());
+    if (s.showTimestamp) left.push(new Date().toLocaleString());
+    if (left.length) doc.text(left.join("  ·  "), s.margin, y, { maxWidth: pageW - s.margin * 2 - 80 });
+    if (s.showPageNumbers) doc.text("Page " + i + " of " + total, pageW - s.margin, y, { align: "right" });
+  }
+  return doc;
+}
+function safeName(n) {
+  var b = String(n || "").trim().replace(/[^\w\s.-]/g, "").replace(/\s+/g, "-");
+  return (b || "spreadsheet-export").slice(0, 60);
+}
+function exportPdf() {
+  if (!state.pages.length) { toast("Add at least one page first", "err"); return; }
+  var doc;
+  try { doc = buildPdf(); } catch (e) { doc = null; console.error(e); }
+  if (!doc) {
+    toast("PDF engine offline — using browser print (choose “Save as PDF”)", "err");
+    printPdf();
+    return;
+  }
+  doc.save(safeName(state.settings.docTitle) + ".pdf");
+  toast("Exported " + state.pages.length + " page" + (state.pages.length === 1 ? "" : "s") + " into one PDF");
+}
+
+/* ---------------- native print fallback (always available, offline too) -- */
+function printPdf() {
+  if (!state.pages.length) { toast("Add at least one page first", "err"); return; }
+  var s = state.settings, dim = PAGE_DIMS[s.pageSize];
+  var w = s.orientation === "landscape" ? dim.h : dim.w;
+  var h = s.orientation === "landscape" ? dim.w : dim.h;
+  var bw = Math.max(0.4, s.borderWidth) + "pt solid " + s.borderColor;
+  var cellCss = s.borderStyle === "all" ? "border:" + bw + ";"
+    : s.borderStyle === "horizontal" ? "border-top:" + bw + ";border-bottom:" + bw + ";" : "border:none;";
+  var old = $("#printStyle"); if (old) old.remove();
+  var st = document.createElement("style");
+  st.id = "printStyle";
+  st.textContent = "@page{size:" + w + "pt " + h + "pt;margin:" + s.margin + "pt}" +
+    "#printRoot{font-family:" + FONT_STACK[s.fontFamily] + ";color:#0f172a}" +
+    "#printRoot h2{font-size:" + Math.max(10, s.fontSize + 3) + "pt;border-bottom:" + bw + ";padding-bottom:4pt}" +
+    "#printRoot td,#printRoot th{" + cellCss + "padding:" + s.cellPadding + "pt;font-size:" + s.fontSize +
+      "pt;vertical-align:middle;word-break:break-word}" +
+    "#printRoot th{background:" + s.headerFill + " !important;color:" + s.headerTextColor +
+      " !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
+    "#printRoot table{" + (s.borderStyle === "none" ? "" : "outline:" + bw + ";") + "}" +
+    (s.zebra ? "#printRoot tbody tr:nth-child(odd) td{background:" + s.zebraColor +
+      " !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}" : "");
+  document.head.appendChild(st);
+
+  var html = state.pages.map(function (p) {
+    var hasHead = p.headerRow && p.rows.length;
+    var nums = numericCols(p.rows, hasHead);
+    var out = '<section class="psheet">';
+    if (s.showTitles && p.title.trim()) out += "<h2>" + esc(p.title) + "</h2>";
+    out += "<table>";
+    if (hasHead) {
+      out += "<thead><tr>" + (s.rowNumbers ? '<th style="text-align:center">#</th>' : "") +
+        p.rows[0].map(function (c, ci) {
+          return '<th style="text-align:' + headAlignFor(p, ci, nums) + '">' + esc(c) + "</th>";
+        }).join("") + "</tr></thead>";
+    }
+    out += "<tbody>";
+    (hasHead ? p.rows.slice(1) : p.rows).forEach(function (r, i) {
+      out += "<tr>" + (s.rowNumbers ? '<td style="text-align:center">' + (i + 1) + "</td>" : "") +
+        r.map(function (c, ci) {
+          return '<td style="text-align:' + bodyAlignFor(p, ci, nums) + '">' + esc(c) + "</td>";
+        }).join("") + "</tr>";
+    });
+    return out + "</tbody></table></section>";
+  }).join("");
+
+  $("#printRoot").innerHTML = html;
+  setTimeout(function () { window.print(); }, 60);
+}
+
+/* =========================================================================
+   4 · RENDERING
+   ========================================================================= */
+function render(animate) {
+  renderList(animate);
+  renderEditor();
+  renderCount();
+  $("#pzSub").innerHTML = "Each paste is saved as its own page &middot; " + state.pages.length +
+    " page" + (state.pages.length === 1 ? "" : "s") + " stored" +
+    (state.options.dupe ? " &middot; replicating ×" + copies() : "") +
+    " &middot; CSV / TSV files can be dropped here";
+  $("#btnExport").disabled = $("#btnPreview").disabled = $("#btnPrint").disabled = !state.pages.length;
+  $("#btnClear").style.display = state.pages.length ? "" : "none";
+  $("#btnDupeAll").style.display = state.pages.length ? "" : "none";
+  syncDupeControls();
+  save();
+}
+function renderCount() {
+  var pill = $("#countPill");
+  var txt = state.pages.length + " page" + (state.pages.length === 1 ? "" : "s") + " · " +
+    state.pages.reduce(function (n, p) { return n + p.rows.length; }, 0) + " rows · " +
+    state.pages.reduce(function (n, p) { return n + ((p.rows[0] || []).length); }, 0) + " cols";
+  if (pill.textContent !== txt) {
+    pill.textContent = txt;
+    pill.classList.remove("pop");
+    void pill.offsetWidth;
+    pill.classList.add("pop");
+  }
+}
+/* keep every duplicacy control in agreement */
+function syncDupeControls() {
+  var n = clampCopies(state.options.dupeCount, 2);
+  var a = $("#optDupeCount"), b = $("#dupCount"), t = $("#optDupe");
+  if (a && document.activeElement !== a) a.value = n;
+  if (b && document.activeElement !== b) b.value = n;
+  if (a) a.disabled = !state.options.dupe;
+  if (t) t.checked = !!state.options.dupe;
+  var chip = $("#chipDupAll");
+  if (chip) chip.querySelector("span").textContent = state.options.dupe
+    ? "Duplicate all ×" + n : "Duplicate all";
+}
+
+/* ------------------------------------------------------------- page list */
+function settleCard(c) {
+  c.classList.add("in");
+  setTimeout(function () { c.classList.remove("reveal", "in"); }, 560);
+}
+var revealIO = null;
+if ("IntersectionObserver" in window) {
+  revealIO = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) { settleCard(en.target); revealIO.unobserve(en.target); }
+    });
+  }, { root: null, threshold: 0.06 });
+}
+function renderList(animate) {
+  var host = $("#pageList");
+  if (!state.pages.length) {
+    host.innerHTML = '<li class="empty-list">No pages yet.<br>Paste a table to create page 1.</li>';
+    return;
+  }
+  host.innerHTML = state.pages.map(function (p, i) {
+    var cols = (p.rows[0] || []).length;
+    var thumbCols = Math.min(cols, 5);
+    var thumb = p.rows.slice(0, 4).map(function (r, ri) {
+      var cells = "";
+      for (var c = 0; c < thumbCols; c++) cells += "<td>" + esc(r[c] || "") + "</td>";
+      return '<tr class="' + (ri === 0 && p.headerRow ? "h" : "") + '">' + cells + "</tr>";
+    }).join("");
+    var isCopy = p.copyIndex != null && p.copyTotal > 1;
+    var cls = "pagecard" + (p.id === state.activeId ? " on" : "") +
+      (animate ? " reveal" : "") + (p.id === state.freshId ? " fresh" : "");
+    return '<li class="' + cls + '" style="transition-delay:' + Math.min(i * 26, 280) + 'ms" draggable="true" ' +
+      'data-id="' + p.id + '" data-i="' + i + '">' +
+      '<div class="pc-top">' +
+        '<svg class="pc-grip" viewBox="0 0 24 24"><use href="#i-grip"/></svg>' +
+        '<span class="pc-idx">' + (i + 1) + "</span>" +
+        '<div style="min-width:0;flex:1">' +
+          '<p class="pc-name">' + esc(p.title || "Untitled page") + "</p>" +
+          '<p class="pc-meta">' + p.rows.length + "×" + cols + (p.headerRow ? " · head" : "") +
+            (isCopy ? ' · <span class="copy">copy ' + p.copyIndex + "/" + p.copyTotal + "</span>" : "") + "</p>" +
+        "</div>" +
+      "</div>" +
+      '<div class="pc-thumb"><table><tbody>' + thumb + "</tbody></table></div>" +
+      '<div class="pc-acts">' +
+        '<button class="iconbtn" data-act="dup" title="Duplicate this page (uses the ×copies box)"' +
+          '><svg viewBox="0 0 24 24"><use href="#i-copy"/></svg></button>' +
+        '<button class="iconbtn" data-act="up" title="Move up"' + (i === 0 ? " disabled" : "") +
+          '><svg viewBox="0 0 24 24"><use href="#i-up"/></svg></button>' +
+        '<button class="iconbtn" data-act="down" title="Move down"' +
+          (i === state.pages.length - 1 ? " disabled" : "") +
+          '><svg viewBox="0 0 24 24"><use href="#i-down"/></svg></button>' +
+        '<button class="iconbtn danger" data-act="del" title="Delete"><svg viewBox="0 0 24 24"><use href="#i-trash"/></svg></button>' +
+      "</div></li>";
+  }).join("");
+
+  var cards = $$(".pagecard", host);
+  if (animate && revealIO) {
+    void host.offsetWidth;                       // flush layout so the reveal transitions run
+    cards.forEach(function (c, i) {
+      if (i < 14) settleCard(c); else revealIO.observe(c);
+    });
+  } else {
+    cards.forEach(function (c) { c.classList.remove("reveal"); });
+  }
+  state.freshId = null;
+}
+
+/* ---------------------------------------------------------------- editor */
+function renderEditor() {
+  var p = activePage();
+  $("#editor").hidden = !p;
+  $("#emptyState").hidden = !!p;
+  if (!p) { $("#paperHost").innerHTML = ""; return; }
+  $("#pageBadge").textContent = activeIndex() + 1;
+  if ($("#pageTitleInput") !== document.activeElement) $("#pageTitleInput").value = p.title;
+  $("#chipHeader").classList.toggle("on", !!p.headerRow);
+  $("#chipEdit").classList.toggle("on", state.editing);
+  $("#chipEdit").querySelector("span").textContent = state.editing ? "Editing" : "Edit cells";
+  var allC = p.colAlign && Object.keys(p.colAlign).length &&
+    Object.keys(p.colAlign).every(function (k) { return p.colAlign[k] === "center"; });
+  $("#chipAlign").classList.toggle("on", !!allC || state.settings.bodyAlign === "center");
+  $("#chipAlign").querySelector("span").textContent = allC || state.settings.bodyAlign === "center" ? "Centred" : "Center all";
+  $("#editHint").hidden = !state.editing;
+  renderPaper();
+}
+
+function colLabel(i) { var s = "", n = i; while (n >= 0) { s = String.fromCharCode((n % 26) + 65) + s; n = Math.floor(n / 26) - 1; } return s; }
+
+function renderPaper() {
+  var p = activePage(); if (!p) return;
+  if (!p.colAlign) p.colAlign = {};
+  var s = state.settings, host = $("#paperHost");
+  var dim = PAGE_DIMS[s.pageSize];
+  var wpt = s.orientation === "landscape" ? dim.h : dim.w;
+  var hpt = s.orientation === "landscape" ? dim.w : dim.h;
+  var paperW = wpt * PT, paperH = hpt * PT, pad = s.margin * PT;
+  var bw = Math.max(0.6, s.borderWidth * PT);
+  var bdr = s.borderStyle === "all" ? "border:" + bw + "px solid " + s.borderColor + ";"
+    : s.borderStyle === "horizontal"
+      ? "border-top:" + bw + "px solid " + s.borderColor + ";border-bottom:" + bw + "px solid " + s.borderColor + ";"
+      : "border:none;";
+  var cellBase = bdr + "padding:" + (s.cellPadding * PT) + "px;font-size:" + (s.fontSize * PT) +
+    "px;line-height:1.25;vertical-align:middle;white-space:pre-wrap;word-break:break-word;";
+  var hasHead = p.headerRow && p.rows.length > 0;
+  var nums = numericCols(p.rows, hasHead);
+  var cols = (p.rows[0] || []).length;
+  var ed = state.editing;
+
+  function cellHtml(v, r, c, head) {
+    var bgi = r - (hasHead ? 1 : 0);
+    var bg = head ? s.headerFill : (s.zebra && bgi % 2 === 0 ? s.zebraColor : "#ffffff");
+    var align = head ? headAlignFor(p, c, nums) : bodyAlignFor(p, c, nums);
+    return '<td ' + (ed ? 'contenteditable="true" ' : "") + 'data-r="' + r + '" data-c="' + c + '" style="' +
+      cellBase + "background:" + bg + ";color:" + (head ? s.headerTextColor : "#0f172a") +
+      ";font-weight:" + (head ? 700 : 400) + ";text-align:" + align + '">' + esc(v) + "</td>";
+  }
+
+  var rowsHtml = "";
+  if (ed) {
+    rowsHtml += "<tr><td class='gut' title='Row / column tools'></td>";
+    for (var c0 = 0; c0 < cols; c0++) {
+      var cur = p.colAlign[c0] || "auto";
+      rowsHtml += "<td class='gut' style='width:auto'>" + colLabel(c0) +
+        "<br><button class='x al" + (cur === "auto" ? "" : " on") + "' data-col-align='" + c0 +
+        "' title='Column alignment: " + cur + " (click to cycle)'><svg viewBox='0 0 24 24'><use href='" +
+        (ALIGN_ICON[cur] || "#i-al-auto") + "'/></svg></button>" +
+        " <button class='x' data-del-col='" + c0 + "' title='Delete column'><svg viewBox='0 0 24 24'><use href='#i-x'/></svg></button></td>";
+    }
+    rowsHtml += "</tr>";
+  }
+  if (hasHead) {
+    rowsHtml += "<tr>";
+    if (ed) rowsHtml += "<td class='gut'><button class='x' data-del-row='0' title='Delete header row'><svg viewBox='0 0 24 24'><use href='#i-x'/></svg></button></td>";
+    if (s.rowNumbers) rowsHtml += '<td style="' + cellBase + "background:" + s.headerFill + ";color:" +
+      s.headerTextColor + ';font-weight:700;text-align:center;width:' + (26 * PT) + 'px">#</td>';
+    rowsHtml += p.rows[0].map(function (v, c) { return cellHtml(v, 0, c, true); }).join("") + "</tr>";
+  }
+  (hasHead ? p.rows.slice(1) : p.rows).forEach(function (row, i) {
+    var r = i + (hasHead ? 1 : 0);
+    rowsHtml += "<tr>";
+    if (ed) rowsHtml += "<td class='gut'>" + (r + 1) +
+      "<br><button class='x' data-del-row='" + r + "' title='Delete row'><svg viewBox='0 0 24 24'><use href='#i-x'/></svg></button></td>";
+    if (s.rowNumbers) rowsHtml += '<td style="' + cellBase + "background:" +
+      (s.zebra && i % 2 === 0 ? s.zebraColor : "#ffffff") + ';color:#64748b;text-align:center;width:' +
+      (26 * PT) + 'px">' + (i + 1) + "</td>";
+    rowsHtml += row.map(function (v, c) { return cellHtml(v, r, c, false); }).join("") + "</tr>";
+  });
+
+  var tableOutline = s.borderStyle === "none" ? "" :
+    "outline:" + bw + "px solid " + s.borderColor + ";outline-offset:-" + (bw / 2) + "px;";
+  var titleHtml = (s.showTitles && p.title.trim())
+    ? '<div style="margin-bottom:8px"><h2 style="font-size:' + (Math.max(10, s.fontSize + 3) * PT) +
+      'px;font-weight:700">' + esc(p.title) + '</h2><div style="border-top:1px solid ' + s.borderColor +
+      ';margin-top:4px"></div></div>' : "";
+  var tableHtml = p.rows.length
+    ? '<table style="border-collapse:collapse;width:100%;' + tableOutline + '"><tbody>' + rowsHtml + "</tbody></table>"
+    : '<p style="text-align:center;color:#cbd5e1;padding:40px 0">Empty page</p>';
+  var addHtml = ed ? '<div><button class="addbtn" data-add="row"><svg viewBox="0 0 24 24"><use href="#i-plus"/></svg>Row</button>' +
+    '<button class="addbtn" data-add="col"><svg viewBox="0 0 24 24"><use href="#i-plus"/></svg>Column</button></div>' : "";
+
+  host.innerHTML = '<div class="paper-box" id="paperBox">' +
+    '<div class="paper-scale" id="paperScale" style="width:' + paperW + 'px">' +
+      '<div class="paper" id="paperSheet" style="width:' + paperW + "px;min-height:" + paperH +
+        "px;padding:" + pad + "px;font-family:" + FONT_STACK[s.fontFamily] + '">' +
+        titleHtml + tableHtml + addHtml +
+      "</div></div></div>";
+
+  /* scale + page-break guides (measured after layout) */
+  requestAnimationFrame(function () {
+    var box = $("#paperBox"), scale = $("#paperScale"), sheet = $("#paperSheet");
+    if (!box || !sheet) return;
+    var avail = host.clientWidth - 32;
+    var z = state.zoom === "fit" ? Math.min(1, avail / paperW) : Number(state.zoom);
+    scale.style.transform = "scale(" + z + ")";
+    var sh = Math.max(sheet.scrollHeight, paperH);
+    var vpages = Math.max(1, Math.ceil(sh / paperH));
+    var extra = "";
+    for (var i = 1; i < vpages; i++) {
+      extra += '<div class="pbreak" style="top:' + (i * paperH) + 'px"><b>PDF page break</b></div>';
+    }
+    for (var k = 0; k < vpages; k++) {
+      var left = [s.docTitle, s.footerText].filter(Boolean).join("  ·  ");
+      extra += '<div class="pfoot" style="top:' + (k * paperH + paperH - s.margin * PT * 0.6) + "px;left:" +
+        pad + "px;right:" + pad + 'px"><span>' + esc(left) + "</span>" +
+        (s.showPageNumbers ? "<span>Page " + (activeIndex() + 1 + k) + "</span>" : "") + "</div>";
+    }
+    sheet.insertAdjacentHTML("beforeend", extra);
+    box.style.height = (sh * z) + "px";
+    $("#pageDims").textContent = p.rows.length + " × " + cols +
+      (vpages > 1 ? " · spans " + vpages + " PDF pages" : "") +
+      (p.copyTotal > 1 ? " · copy " + p.copyIndex + "/" + p.copyTotal : "");
+  });
+}
+
+/* ------------------------------------------------------- settings panel  */
+function segBtn(attr, val, cur, icon, label) {
+  return '<button class="seg' + (cur === val ? " on" : "") + '" ' + attr + '="' + val + '">' +
+    (icon ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><use href="' + icon + '"/></svg>' : "") +
+    label + "</button>";
+}
+function settingsHtml() {
+  var s = state.settings;
+  function fld(label, hint, inner) {
+    return '<label class="field"><span class="lab">' + label +
+      (hint ? '<span class="hint">' + hint + "</span>" : "") + "</span>" + inner + "</label>";
+  }
+  function color(key) {
+    return '<span class="colorwrap"><input type="color" data-set="' + key + '" value="' + s[key] +
+      '"><span data-hex="' + key + '">' + s[key] + "</span></span>";
+  }
+  function num(key, min, max, step) {
+    return '<input class="inp" type="number" data-set="' + key + '" value="' + s[key] +
+      '" min="' + min + '" max="' + max + '" step="' + (step || 1) + '">';
+  }
+  function tog(key, label, desc) {
+    return '<label class="toggle"><span><span class="tl">' + label + "</span>" +
+      (desc ? '<span class="td">' + desc + "</span>" : "") + "</span>" +
+      '<input type="checkbox" data-set="' + key + '"' + (s[key] ? " checked" : "") +
+      '><span class="track"></span></label>';
+  }
+  var presets = PRESETS.map(function (p, i) {
+    return '<button class="preset" data-preset="' + i + '"><span class="sw">' +
+      '<i style="background:' + p.s.headerFill + ";border-color:" + p.s.borderColor + '"></i>' +
+      '<i style="background:' + (p.s.zebraColor || "#fff") + ";border-color:" + p.s.borderColor + '"></i>' +
+      "</span><span>" + p.name + "</span><small>" + p.note + "</small></button>";
+  }).join("");
+  var borders = [["all", "All"], ["horizontal", "Rows"], ["outline", "Frame"], ["none", "None"]].map(function (b) {
+    return '<button class="seg' + (s.borderStyle === b[0] ? " on" : "") + '" data-border="' + b[0] + '">' + b[1] + "</button>";
+  }).join("");
+  var orients = [["portrait", "14px", "20px"], ["landscape", "20px", "14px"]].map(function (o) {
+    return '<button class="seg' + (s.orientation === o[0] ? " on" : "") + '" data-orient="' + o[0] +
+      '"><span class="box" style="width:' + o[1] + ";height:" + o[2] + '"></span>' + o[0] + "</button>";
+  }).join("");
+  var bodyAlignSeg =
+      segBtn("data-balign", "auto",   s.bodyAlign, "#i-al-auto",   "Auto") +
+      segBtn("data-balign", "left",   s.bodyAlign, "#i-al-left",   "Left") +
+      segBtn("data-balign", "center", s.bodyAlign, "#i-al-center", "Centre") +
+      segBtn("data-balign", "right",  s.bodyAlign, "#i-al-right",  "Right");
+  var headAlignSeg =
+      segBtn("data-halign", "left",   s.headerAlign, "#i-al-left",   "Left") +
+      segBtn("data-halign", "center", s.headerAlign, "#i-al-center", "Centre") +
+      segBtn("data-halign", "right",  s.headerAlign, "#i-al-right",  "Right") +
+      segBtn("data-halign", "follow", s.headerAlign, "",             "Follow");
+
+  return '' +
+  '<div class="sect"><h3 class="sect-t">Presets</h3><div class="presets">' + presets + "</div></div>" +
+
+  '<div class="sect"><h3 class="sect-t">Alignment</h3>' +
+    fld("Body cells", s.bodyAlign === "auto" ? "auto = numbers right" : "",
+        '<div class="segment c4">' + bodyAlignSeg + "</div>") +
+    fld("Header cells", s.headerAlign === "follow" ? "matches body" : "",
+        '<div class="segment c4">' + headAlignSeg + "</div>") +
+    '<p style="font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;color:var(--soft);line-height:1.7;margin:2px 0 0">' +
+      "Turn on <b style='color:var(--muted);font-weight:600'>Edit cells</b> to set alignment per column.</p>" +
+  "</div>" +
+
+  '<div class="sect"><h3 class="sect-t">Page setup</h3>' +
+    fld("Paper size", PAGE_DIMS[s.pageSize].label,
+      '<select class="inp" data-set="pageSize">' +
+      ["a4", "letter", "legal"].map(function (v) {
+        return '<option value="' + v + '"' + (s.pageSize === v ? " selected" : "") + ">" +
+          (v === "a4" ? "A4" : v === "letter" ? "Letter" : "Legal") + "</option>";
+      }).join("") + "</select>") +
+    '<div class="segment c2" style="margin-bottom:11px">' + orients + "</div>" +
+    '<div class="grid2">' + fld("Margin", "pt", num("margin", 10, 120)) +
+      fld("Font size", "pt", num("fontSize", 5, 24, 0.5)) + "</div>" +
+    fld("Font family", "", '<select class="inp" data-set="fontFamily">' +
+      [["helvetica", "Helvetica (sans)"], ["times", "Times (serif)"], ["courier", "Courier (mono)"]]
+        .map(function (f) { return '<option value="' + f[0] + '"' + (s.fontFamily === f[0] ? " selected" : "") + ">" + f[1] + "</option>"; })
+        .join("") + "</select>") +
+  "</div>" +
+
+  '<div class="sect"><h3 class="sect-t">Table borders</h3>' +
+    '<div class="segment c4" style="margin-bottom:11px">' + borders + "</div>" +
+    '<div class="grid2">' + fld("Border color", "", color("borderColor")) +
+      fld("Thickness", "pt", num("borderWidth", 0.1, 3, 0.1)) + "</div>" +
+    fld("Cell padding", "pt", num("cellPadding", 0, 20, 0.5)) +
+  "</div>" +
+
+  '<div class="sect"><h3 class="sect-t">Header &amp; rows</h3>' +
+    '<div class="grid2">' + fld("Header fill", "", color("headerFill")) +
+      fld("Header text", "", color("headerTextColor")) + "</div>" +
+    tog("zebra", "Zebra striping", "Shade alternating rows") +
+    fld("Stripe color", "", color("zebraColor")) +
+    tog("repeatHeader", "Repeat header", "On every overflow page") +
+    tog("rowNumbers", "Row numbers", "Adds a # column") +
+    tog("alignNumbersRight", "Auto-detect numbers", "Used when body alignment is Auto") +
+  "</div>" +
+
+  '<div class="sect"><h3 class="sect-t">Titles &amp; footer</h3>' +
+    tog("showTitles", "Show page titles", "") +
+    tog("showPageNumbers", "Page numbers", "") +
+    tog("showTimestamp", "Export timestamp", "") +
+    fld("Footer note", "", '<input class="inp" data-set="footerText" value="' + esc(s.footerText) +
+      '" placeholder="Confidential · Q1 report…">') +
+  "</div>" +
+
+  '<div class="sect" style="margin-bottom:4px"><h3 class="sect-t">Duplicacy</h3>' +
+    '<p style="font-family:var(--mono);font-size:9.5px;letter-spacing:.03em;color:var(--soft);line-height:1.7;margin:0 0 9px">' +
+      "Tick <b style='color:var(--muted);font-weight:600'>Replicate pages &times;N</b> above the editor to store N " +
+      "identical pages per paste, or use <b style='color:var(--muted);font-weight:600'>Duplicate</b> / " +
+      "<b style='color:var(--muted);font-weight:600'>Duplicate all</b> with the &times;N copies box.</p>" +
+    '<label class="toggle"><span><span class="tl">Replicate on paste</span>' +
+      '<span class="td">Every paste / import adds N copies</span></span>' +
+      '<input type="checkbox" data-opt="dupe"' + (state.options.dupe ? " checked" : "") +
+      '><span class="track"></span></label>' +
+    fld("Copies per paste", "1–99", '<input class="inp" type="number" data-opt="dupeCount" value="' +
+      clampCopies(state.options.dupeCount, 2) + '" min="1" max="99" step="1">') +
+    '<div class="grid2" style="margin-top:2px">' +
+      '<button class="btn sm" data-act="dupall" style="width:100%">Duplicate all</button>' +
+      '<button class="btn sm" data-act="dedup" style="width:100%">Remove copies</button>' +
+    "</div>" +
+  "</div>";
+}
+function renderSettings() {
+  var html = settingsHtml();
+  $("#settingsHost").innerHTML = html;
+  $("#settingsHostMobile").innerHTML = html;
+}
+/* drop every clone, keeping one page per original family */
+function removeCopies() {
+  var seen = {}, keep = [];
+  state.pages.forEach(function (p) {
+    var fam = p.copyOf || p.id;
+    if (seen[fam]) return;
+    seen[fam] = true;
+    delete p.copyIndex; delete p.copyTotal; delete p.copyOf;
+    keep.push(p);
+  });
+  var removed = state.pages.length - keep.length;
+  if (!removed) { toast("No duplicate copies to remove", "err"); return; }
+  state.pages = keep;
+  if (!keep.some(function (p) { return p.id === state.activeId; })) state.activeId = keep[0].id;
+  toast(removed + " duplicate page" + (removed === 1 ? "" : "s") + " removed");
+  render(true);
+}
+
+/* =========================================================================
+   5 · EVENTS
+   ========================================================================= */
+function toast(text, tone) {
+  var el = document.createElement("div");
+  el.className = "toast " + (tone === "err" ? "err" : "ok");
+  el.textContent = text;
+  $("#toasts").appendChild(el);
+  setTimeout(function () { el.remove(); }, 3400);
+}
+
+/* ---- paste zone ---- */
+var pz = $("#pasteZone"), catcher = $("#pasteCatcher");
+catcher.addEventListener("focus", function () {
+  pz.classList.add("focus");
+  $("#pzTitle").textContent = state.options.dupe
+    ? "Ready — Ctrl+V pastes " + copies() + " copies of this table"
+    : "Ready — press Ctrl+V / ⌘V to paste";
+});
+catcher.addEventListener("blur", function () {
+  pz.classList.remove("focus");
+  $("#pzTitle").textContent = "Click here, then paste your spreadsheet selection";
+});
+catcher.addEventListener("paste", function (e) {
+  e.preventDefault(); e.stopPropagation();
+  handleClipboard(e.clipboardData.getData("text/html"), e.clipboardData.getData("text/plain"));
+  catcher.value = "";
+});
+catcher.addEventListener("input", function () { catcher.value = ""; });
+["dragenter", "dragover"].forEach(function (ev) {
+  pz.addEventListener(ev, function (e) { e.preventDefault(); pz.classList.add("drag");
+    $("#pzTitle").textContent = "Drop your file to add a page"; });
+});
+["dragleave", "drop"].forEach(function (ev) {
+  pz.addEventListener(ev, function () { pz.classList.remove("drag");
+    $("#pzTitle").textContent = "Click here, then paste your spreadsheet selection"; });
+});
+pz.addEventListener("drop", function (e) {
+  e.preventDefault();
+  if (e.dataTransfer.files && e.dataTransfer.files.length) readFiles(e.dataTransfer.files);
+  else handleClipboard(e.dataTransfer.getData("text/html"), e.dataTransfer.getData("text/plain"));
+});
+/* global paste anywhere on the page */
+document.addEventListener("paste", function (e) {
+  var t = e.target;
+  if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+  if (!e.clipboardData) return;
+  e.preventDefault();
+  handleClipboard(e.clipboardData.getData("text/html"), e.clipboardData.getData("text/plain"));
+});
+function readFiles(files) {
+  Array.prototype.slice.call(files).forEach(function (f) {
+    var fr = new FileReader();
+    fr.onload = function () { addGrid(parseDelimited(String(fr.result || "")), f.name.replace(/\.[^.]+$/, "")); };
+    fr.readAsText(f);
+  });
+}
+$("#btnFile").onclick = function () { $("#fileInput").click(); };
+$("#fileInput").onchange = function (e) { readFiles(e.target.files); e.target.value = ""; };
+$("#btnSample").onclick = $("#btnSample2").onclick = loadSamples;
+
+/* ---- import options (incl. duplicacy toggle) ---- */
+$("#optHeader").checked = state.options.header;
+$("#optSplit").checked = state.options.split;
+$("#optRows").value = state.options.rows;
+$("#optHeader").onchange = function (e) { state.options.header = e.target.checked; save(); };
+$("#optSplit").onchange  = function (e) { state.options.split = e.target.checked; save(); };
+$("#optRows").oninput    = function (e) { state.options.rows = Math.max(0, Number(e.target.value) || 0); save(); };
+
+$("#optDupe").onchange = function (e) {
+  state.options.dupe = e.target.checked;
+  toast(e.target.checked ? "Replication on — each paste stores " + copies(2) + " identical pages"
+                         : "Replication off — one page per paste");
+  render();
+};
+$("#optDupeCount").oninput = function (e) {
+  state.options.dupeCount = clampCopies(e.target.value, 1);
+  syncDupeControls(); save();
+};
+$("#dupCount").oninput = function (e) {
+  state.options.dupeCount = clampCopies(e.target.value, 1);
+  syncDupeControls(); save();
+};
+$("#optDupeCount").onchange = function (e) { e.target.value = clampCopies(e.target.value, 1); };
+$("#dupCount").onchange = function (e) { e.target.value = clampCopies(e.target.value, 1); };
+
+/* ---- page list ---- */
+var dragFrom = null;
+$("#pageList").addEventListener("click", function (e) {
+  var card = e.target.closest(".pagecard"); if (!card) return;
+  var id = card.dataset.id, i = Number(card.dataset.i);
+  var act = e.target.closest("[data-act]");
+  if (act) {
+    e.stopPropagation();
+    var a = act.dataset.act;
+    if (a === "up") movePage(i, -1);
+    else if (a === "down") movePage(i, 1);
+    else if (a === "dup") duplicatePage(id, copies(1));
+    else if (a === "del") deletePage(id);
+    return;
+  }
+  state.activeId = id; render();
+});
+$("#pageList").addEventListener("dragstart", function (e) {
+  var c = e.target.closest(".pagecard"); if (!c) return;
+  dragFrom = Number(c.dataset.i); c.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+  try { e.dataTransfer.setData("text/plain", String(dragFrom)); } catch (err) {}
+});
+$("#pageList").addEventListener("dragend", function () {
+  dragFrom = null;
+  $$(".pagecard").forEach(function (c) { c.classList.remove("dragging", "over"); });
+});
+$("#pageList").addEventListener("dragover", function (e) {
+  if (dragFrom === null) return;
+  e.preventDefault();
+  var c = e.target.closest(".pagecard"); if (!c) return;
+  $$(".pagecard").forEach(function (x) { x.classList.remove("over"); });
+  if (Number(c.dataset.i) !== dragFrom) c.classList.add("over");
+});
+$("#pageList").addEventListener("drop", function (e) {
+  if (dragFrom === null) return;
+  e.preventDefault(); e.stopPropagation();
+  var c = e.target.closest(".pagecard"); if (!c) return;
+  var to = Number(c.dataset.i);
+  if (to !== dragFrom) reorder(dragFrom, to);
+  dragFrom = null;
+});
+$("#btnClear").onclick = function () {
+  if (!state.pages.length) return;
+  if (confirm("Remove all " + state.pages.length + " pages? This cannot be undone.")) {
+    state.pages = []; state.activeId = null; toast("All pages cleared"); render(true);
+  }
+};
+$("#btnDupeAll").onclick = function () { duplicateAll(copies(1)); };
+$("#chipDupAll").onclick = function () { duplicateAll(copies(1)); };
+
+/* ---- editor toolbar ---- */
+$("#pageTitleInput").addEventListener("input", function (e) {
+  var p = activePage(); if (!p) return;
+  p.title = e.target.value;
+  var card = $('.pagecard[data-id="' + p.id + '"] .pc-name');
+  if (card) card.textContent = p.title || "Untitled page";
+  var h2 = $("#paperSheet h2");
+  if (h2) h2.textContent = p.title;
+  save();
+});
+$("#pageTitleInput").addEventListener("change", render);
+$("#chipHeader").onclick = function () { var p = activePage(); if (!p) return; p.headerRow = !p.headerRow; render(); };
+$("#chipEdit").onclick = function () { state.editing = !state.editing; render(); };
+$("#chipAlign").onclick = centerAllColumns;
+$("#chipSplit").onclick = splitActive;
+$("#chipTranspose").onclick = transposeActive;
+$("#chipDup").onclick = function () { var p = activePage(); if (p) duplicatePage(p.id, copies(1)); };
+$("#chipDel").onclick = function () { var p = activePage(); if (p) deletePage(p.id); };
+$("#zoomSel").onchange = function (e) { state.zoom = e.target.value === "fit" ? "fit" : Number(e.target.value); renderPaper(); };
+
+/* ---- paper interactions (cell edit / align / delete row-col / add) ---- */
+$("#paperHost").addEventListener("focusout", function (e) {
+  var td = e.target.closest ? e.target.closest("td[contenteditable]") : null;
+  if (!td) return;
+  var p = activePage(); if (!p) return;
+  var r = Number(td.dataset.r), c = Number(td.dataset.c);
+  var v = td.innerText.replace(/\u00a0/g, " ").replace(/\s+$/, "");
+  if (p.rows[r] && p.rows[r][c] !== v) { p.rows[r][c] = v; save(); renderList(false); renderCount(); }
+});
+$("#paperHost").addEventListener("click", function (e) {
+  var p = activePage(); if (!p) return;
+  var ca = e.target.closest("[data-col-align]"),
+      dr = e.target.closest("[data-del-row]"), dc = e.target.closest("[data-del-col]"),
+      ad = e.target.closest("[data-add]");
+  if (ca) {
+    if (!p.colAlign) p.colAlign = {};
+    var ci = Number(ca.dataset.colAlign);
+    var nv = nextColAlign(p.colAlign[ci]);
+    if (nv === "auto") delete p.colAlign[ci]; else p.colAlign[ci] = nv;
+    toast("Column " + colLabel(ci) + " → " + nv);
+    renderPaper(); renderEditor(); save();
+  } else if (dr) { p.rows.splice(Number(dr.dataset.delRow), 1); render(); }
+  else if (dc) {
+    var dci = Number(dc.dataset.delCol);
+    p.rows = p.rows.map(function (r) { var x = r.slice(); x.splice(dci, 1); return x; });
+    p.colAlign = {};
+    render();
+  } else if (ad) {
+    if (ad.dataset.add === "row") p.rows.push(new Array((p.rows[0] || []).length).fill(""));
+    else p.rows = p.rows.map(function (r) { return r.concat([""]); });
+    render();
+  }
+});
+
+/* ---- settings delegation (desktop panel + mobile drawer) ---- */
+function bindSettings(root) {
+  root.addEventListener("input", onSet);
+  root.addEventListener("change", onSet);
+  root.addEventListener("click", function (e) {
+    var pr = e.target.closest("[data-preset]"), bd = e.target.closest("[data-border]"),
+        or = e.target.closest("[data-orient]"), ba = e.target.closest("[data-balign]"),
+        ha = e.target.closest("[data-halign]"), ac = e.target.closest("[data-act]");
+    if (pr) {
+      var pre = PRESETS[Number(pr.dataset.preset)].s;
+      for (var k in pre) state.settings[k] = pre[k];
+      renderSettings(); renderPaper(); renderEditor(); save();
+      toast(PRESETS[Number(pr.dataset.preset)].name + " style applied");
+    } else if (bd) { state.settings.borderStyle = bd.dataset.border; renderSettings(); renderPaper(); save(); }
+    else if (or) { state.settings.orientation = or.dataset.orient; renderSettings(); renderPaper(); save(); }
+    else if (ba) {
+      state.settings.bodyAlign = ba.dataset.balign;
+      renderSettings(); renderPaper(); renderEditor(); save();
+      toast("Body cells → " + ba.dataset.balign);
+    }
+    else if (ha) {
+      state.settings.headerAlign = ha.dataset.halign;
+      renderSettings(); renderPaper(); renderEditor(); save();
+      toast("Header cells → " + ha.dataset.halign);
+    }
+    else if (ac && ac.dataset.act === "dupall") duplicateAll(copies(1));
+    else if (ac && ac.dataset.act === "dedup") removeCopies();
+  });
+}
+function onSet(e) {
+  var opt = e.target.closest ? e.target.closest("[data-opt]") : null;
+  if (opt) {
+    var key2 = opt.dataset.opt;
+    if (key2 === "dupe") state.options.dupe = opt.checked;
+    else state.options.dupeCount = clampCopies(opt.value, 1);
+    syncDupeControls();
+    renderSettings();
+    render(true);
+    return;
+  }
+  var el = e.target.closest ? e.target.closest("[data-set]") : null;
+  if (!el) return;
+  var key = el.dataset.set, v;
+  if (el.type === "checkbox") v = el.checked;
+  else if (el.type === "number") v = Number(el.value);
+  else v = el.value;
+  if (el.type === "number" && !isFinite(v)) return;
+  state.settings[key] = v;
+  if (el.type === "color") {
+    $$('[data-hex="' + key + '"]').forEach(function (h) { h.textContent = el.value; });
+    $$('input[data-set="' + key + '"]').forEach(function (i) { if (i !== el) i.value = el.value; });
+  } else {
+    $$('[data-set="' + key + '"]').forEach(function (i) {
+      if (i === el) return;
+      if (i.type === "checkbox") i.checked = v; else i.value = el.value;
+    });
+  }
+  if (key === "pageSize") renderSettings();
+  renderPaper(); renderEditor(); save();
+}
+bindSettings($("#settingsHost"));
+bindSettings($("#settingsHostMobile"));
+
+/* ---- document title ---- */
+$("#docTitle").value = state.settings.docTitle;
+$("#docTitle").addEventListener("input", function (e) {
+  state.settings.docTitle = e.target.value;
+  var f = $("#paperSheet .pfoot span");
+  if (f) f.textContent = [e.target.value, state.settings.footerText].filter(Boolean).join("  ·  ");
+  save();
+});
+
+/* ---- export / preview / print ---- */
+$("#btnExport").onclick = exportPdf;
+$("#btnPrint").onclick = printPdf;
+$("#btnModalDownload").onclick = exportPdf;
+$("#btnPreview").onclick = function () {
+  if (!state.pages.length) return;
+  var body = $("#pdfModalBody");
+  $("#pdfModalSub").textContent = state.pages.length + " source page" + (state.pages.length === 1 ? "" : "s") +
+    " · rendered as a single multi-page document";
+  $("#pdfModal").hidden = false;
+  var doc = null;
+  try { doc = buildPdf(); } catch (err) { console.error(err); }
+  if (!doc) {
+    body.innerHTML = '<div class="msg">The PDF engine could not be loaded (offline?).<br><br>' +
+      'Use <b>Print</b> in the toolbar and choose <b>“Save as PDF”</b> — it produces the same ' +
+      'multi-page bordered document.</div>';
+    return;
+  }
+  var url = doc.output("bloburl");
+  body.innerHTML = '<iframe title="PDF preview" src="' + url + '"></iframe>';
+};
+$("#btnModalClose").onclick = function () { $("#pdfModal").hidden = true; $("#pdfModalBody").innerHTML = ""; };
+$("#pdfModal").addEventListener("click", function (e) { if (e.target === $("#pdfModal")) $("#btnModalClose").click(); });
+
+/* ---- mobile settings drawer ---- */
+function syncDesignBtn() { $("#btnDesign").style.display = window.innerWidth <= 1280 ? "" : "none"; }
+$("#btnDesign").onclick = function () { $("#drawer").hidden = false; };
+$$("[data-close-drawer]").forEach(function (el) { el.onclick = function () { $("#drawer").hidden = true; }; });
+var rzTimer = null;
+window.addEventListener("resize", function () {
+  syncDesignBtn();
+  clearTimeout(rzTimer);
+  rzTimer = setTimeout(renderPaper, 90);
+});
+
+/* ---- keyboard ---- */
+document.addEventListener("keydown", function (e) {
+  var mod = e.metaKey || e.ctrlKey;
+  var k = (e.key || "").toLowerCase();
+  var typing = e.target && (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable);
+  if (mod && k === "e") { e.preventDefault(); exportPdf(); }
+  else if (mod && k === "p") { e.preventDefault(); printPdf(); }
+  else if (mod && k === "d") {                       // duplicate current page ×N
+    e.preventDefault();
+    if (typing) return;
+    var p = activePage();
+    if (p) duplicatePage(p.id, copies(1));
+  }
+  else if (e.key === "Escape") { $("#pdfModal").hidden = true; $("#drawer").hidden = true; }
+});
+
+/* ---- boot ---- */
+syncDesignBtn();
+renderSettings();
+render(true);
+if (!pdfReady()) {
+  setTimeout(function () {
+    if (!pdfReady()) toast("PDF engine unavailable — use Print → “Save as PDF” (works offline)", "err");
+  }, 2500);
+}
+})();
+</script>
+</body>
+</html>
